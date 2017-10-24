@@ -389,9 +389,12 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
     findsql = 0
     aggsuccess = 0
     mktuidmap = {}
-    for filetype in os.listdir(parquetpath):
+    for filetypedir in os.listdir(parquetpath):
+        filetype = filetypedir
+        if filetype.find("pk_ft=") >=0:
+            filetype = filetype.replace("pk_ft=", "")
         util.logMessage('============== file type: {} =============='.format(filetype), logf)
-        pqfiletypedir = os.path.join(parquetpath, filetype)
+        pqfiletypedir = os.path.join(parquetpath, filetypedir)
         if os.path.isdir(pqfiletypedir):
             totaldir += 1
             util.logMessage('file type folder: {}'.format(pqfiletypedir), logf)
@@ -722,7 +725,7 @@ def saveParquetFile(spark, vendor, tech, df, mode, lookupview, parquettype, parq
 , IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster\
 , IFNULL(l.MARKET_SUFFIX,'unassigned') AS HL_Market_Suffix\
 , IFNULL(l.AREA,'unassigned') AS HL_Area \
-from {} k left join {} l on UPPER(k.OSS) = UPPER(l.OSS) AND k.cell_id_1 = l.CELL_UID".format(parquettype, lookupview)
+from {} k left join {} l on UPPER(k.OSS) = UPPER(l.OSS) and k.cell_id_1 = l.CELL_UID".format(parquettype, lookupview)
     
     try:
         util.logMessage('[{}] - lookup query: {}'.format(parquettype, lookupquery), logf)
@@ -942,7 +945,7 @@ def main():
 
         if not os.path.isdir(parquetpath):
             util.logMessage("creating parquet root path: {}".format(parquetpath), logf)
-            os.mkdir(parquetpath)
+            os.makedirs(parquetpath)
 
         schemapath = os.path.join(root, 'schema')
         sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
@@ -1051,7 +1054,7 @@ def main():
 
         if not os.path.isdir(parquetpath):
             util.logMessage("creating parquet root path: {}".format(parquetpath), logf)
-            os.mkdir(parquetpath)
+            os.makedirs(parquetpath)
            
         schemapath = os.path.join(root, 'schema')
         sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
