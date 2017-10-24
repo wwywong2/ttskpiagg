@@ -271,9 +271,10 @@ def loadCellLookup(lookupPQ):
    global dictMarketLookup
 
    # read lookup parquet
-   util.logMessage("reading lookup parquet: %s" % lookupPQ)
+   newlookupPQ = lookupPQ + "/TECH=%s/VENDOR=%s" % ('LTE','Ericsson')
+   util.logMessage("reading lookup parquet: %s" % newlookupPQ)
 
-   dfLookup = spark.read.parquet(lookupPQ)
+   dfLookup = spark.read.parquet(newlookupPQ)
    dfCellLookup = dfLookup # save to global
    dfLookup.createOrReplaceTempView('lookup')
 
@@ -284,7 +285,7 @@ def loadCellLookup(lookupPQ):
    for row in arrMarketLookup:
       dictMarketLookup[row['MARKET']] = row['MARKET_SUFFIX']
 
-   util.logMessage("finish reading lookup parquet: %s" % lookupPQ)
+   util.logMessage("finish reading lookup parquet: %s" % newlookupPQ)
 
 
 
@@ -490,7 +491,8 @@ def addPkAndSaveParquet(origDF, writemode, outputDir, numPartition=None):
    # example join sql
    #sqlDF = spark.sql("SELECT l.TECH,l.VENDOR,l.MARKET,l.CLUSTER,l.AREA,k.EUtranCellFDD from kpi k left join lookup l on k.EUtranCellFDD = l.CELL")
    # create join dataframe
-   df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on k.EUtranCellFDD = l.CELL AND l.TECH = 'LTE'")
+   #df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on k.EUtranCellFDD = l.CELL AND l.TECH = 'LTE'")
+   df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on UPPER(k.OSSName) = UPPER(l.OSS) AND k.EUtranCellFDD = l.CELL")
 
    # add key col from HL_MARKET - need to add HL_MARKET because that column will be gone if we go into sub dir
    df = df.withColumn("pk_market", df['HL_MARKET'])

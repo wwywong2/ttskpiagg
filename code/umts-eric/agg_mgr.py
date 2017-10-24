@@ -238,8 +238,8 @@ if not os.path.isdir(output_parq): # create if not exist
       util.logMessage("Failed to create output parquet location \"%s\"!" % output_parq)
       util.logMessage("Process terminated.")
       util.endProcess(lockpath, 2)
-# safeguard - check if there are dates to export if export mode not only save pq
-if exportMode != 2 and int(optionJSON[u'exportWithinDay']) > -1: # -1 = skip this check
+# safeguard - check if there are dates to export if export mode is export csv only
+if exportMode == 3 and int(optionJSON[u'exportWithinDay']) > -1: # -1 = skip this check
    currDate = datetime.date.today()
    infoPq = util.getInfoFromPQ(output_parq)
    if infoPq is None or len(infoPq.items()) <= 0: # safeguard
