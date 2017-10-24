@@ -159,6 +159,16 @@ if 'partitionNum' not in optionJSON:
    optionJSON[u'partitionNum'] = 2
 if 'loadFactor' not in optionJSON:
    optionJSON[u'loadFactor'] = 3
+if 'exportHr' not in optionJSON:
+   optionJSON[u'exportHr'] = "3"
+if int(optionJSON[u'exportHr']) < 1 or int(optionJSON[u'exportHr']) > 24: # safeguard - make sure it is between 1-24
+   optionJSON[u'exportHr'] = "3"
+if 'exportDaily' not in optionJSON: # export daily or not
+   optionJSON[u'exportDaily'] = "N"
+optionJSON[u'exportDaily'] = optionJSON[u'exportDaily'].upper()
+if optionJSON[u'exportDaily'] != 'Y': # safeguard - make sure it is either Y or N
+   optionJSON[u'exportDaily'] = "N"
+   
 util.logMessage("Process start with option:\n%s" % optionJSON)
 
 # argv[8] - process mode
@@ -599,9 +609,6 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_Cl
    # create csv by market
    for market,marketItem in dateItem.items():
 
-      #for hour,hourItem in marketItem.items(): # key2: hour; value: pathname
-      #   util.logMessage("creating csv for hr: %s" % hour)
-
       # get uuid for MGR_RUN_ID
       uuidstr = str(uuid.uuid4())
 
@@ -615,23 +622,21 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_Cl
       else:
          suffix = 'null' # safeguard - no schema with _null
 
-      numMaxHr = len(marketItem.items()) # get num of hours to run csv
-      if numMaxHr > 24: # safeguard
-         numMaxHr = 24
-
       # create hourly csv
       uuidstr_last = '' # init
-      for i in xrange(0,numMaxHr):
+      for hour,hourItem in sorted(marketItem.items()): # key2: hour; value: pathname
+
+         #util.logMessage("creating csv for hr: %s" % hour)
 
          # append hr to run id
-         uuidstr_final = "%02d-%s" % (i,uuidstr)
+         uuidstr_final = "%02d-%s" % (int(hour),uuidstr)
          uuidstr_last = uuidstr_final
 
          # replace with real uuid
          sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr_final)
 
          # replace where clause
-         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, int(hour))
          sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
 
          #print sqlStrFinal
@@ -642,11 +647,11 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_Cl
             # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
             #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
             saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s_%02d.csv" % (
-		date, suffix, market.replace(' ', '-'), i))
+		date, suffix, market.replace(' ', '-'), int(hour)))
 
 
       # create daily csv
-      if numMaxHr > 0: # if there is any hr data, create daily data
+      if len(marketItem.items()) > 0: # if there is any hr data, create daily data
 
          # append hr to run id (24 mean daily)
          uuidstr_final = "24-%s" % (uuidstr)
@@ -762,9 +767,6 @@ def aggKPI2(spark, pq, jsonFile, workdir):
    # create csv by market
    for market,marketItem in dateItem.items():
 
-      #for hour,hourItem in marketItem.items():
-      #   util.logMessage("creating csv for hr: %s" % hour)
-
       # get uuid for MGR_RUN_ID
       uuidstr = str(uuid.uuid4())
 
@@ -778,38 +780,44 @@ def aggKPI2(spark, pq, jsonFile, workdir):
       else:
          suffix = 'null' # safeguard - no schema with _null
 
-      numMaxHr = len(marketItem.items()) # get num of hours to run csv
-      if numMaxHr > 24: # safeguard
-         numMaxHr = 24
-
       # create hourly csv
       uuidstr_last = '' # init
-      for i in xrange(0,numMaxHr):
+      exportCountdown = int(optionJSON[u'exportHr']) # export last n available hr (not neccessary last n hr; e.g. 12,14,20)
+      if exportCountdown < 1 or exportCountdown > 24: # safeguard - between 1-24
+         exportCountdown = 3
+      for hour,hourItem in sorted(marketItem.items(), reverse=True):
 
-         # append hr to run id
-         uuidstr_final = "%02d-%s" % (i,uuidstr)
-         uuidstr_last = uuidstr_final
+         #util.logMessage("creating csv for hr: %s" % hour)
 
-         # replace with real uuid
-         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
+         if exportCountdown > 0:
 
-         # replace where clause
-         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
-         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+            exportCountdown -= 1
 
-         #print sqlStrFinal
-         sqlDF = spark.sql(sqlStrFinal)
+            # append hr to run id
+            uuidstr_final = "%02d-%s" % (int(hour),uuidstr)
+            if uuidstr_last == '':
+               uuidstr_last = uuidstr_final
 
-         # save df to csv if not empty
-         if sqlDF.count() > 0:
-            # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
-            #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
-            saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s_%02d.csv" % (
-		date, suffix, market.replace(' ', '-'), i))
+            # replace with real uuid
+            sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
+
+            # replace where clause
+            whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, int(hour))
+            sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+            #print sqlStrFinal
+            sqlDF = spark.sql(sqlStrFinal)
+
+            # save df to csv if not empty
+            if sqlDF.count() > 0:
+               # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+               #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
+               saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s_%02d.csv" % (
+						date, suffix, market.replace(' ', '-'), int(hour)))
 
 
       # create daily csv
-      if numMaxHr > 0: # if there is any hr data, create daily data
+      if optionJSON[u'exportDaily'] == "Y" and len(marketItem.items()) > 0: # if there is any hr data, create daily data
 
          # append hr to run id (24 mean daily)
          uuidstr_final = "24-%s" % (uuidstr)

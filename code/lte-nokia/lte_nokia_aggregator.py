@@ -61,12 +61,12 @@ def endProcess(removedir, f):
         
     if os.path.isdir(removedir):
         util.removeDir(removedir)
-        
-def genAggregatecsv(spark, sqlquery, savepath, filename, logf):
+
+def genAggregatecsv(spark, sqlquery, savepath, filename, coalesce, logf):
 
     ret = 0
     kpidf = None
-    coalesce = 8
+    #coalesce = 8
 
     util.logMessage('executing query: {}'.format(sqlquery), logf)
     try:
@@ -167,7 +167,7 @@ order by t1.pk_market ASC, t1.pk_date DESC, t1.pk_hr DESC".format(getmaxdatesql)
     finally:
         return datetimearr
 
-def getdatadatetime2(pqfiletypedir, previousdatehrs, logf):
+def getdatadatetime2(pqfiletypedir, exportHr, previousdatehrs, logf):
 
     datetimearr = []
     latestdate = ''
@@ -182,7 +182,7 @@ def getdatadatetime2(pqfiletypedir, previousdatehrs, logf):
                     datamkt = mktfd.split('=')[1].strip('\n').strip('\r')
                     hrfdcnt = 0
                     for hrfd in sorted(os.listdir(os.path.join(pqfiletypedir, datefd, mktfd)), reverse=True):
-                        if hrfd.find("pk_hr") >= 0:
+                        if hrfd.find("pk_hr") >= 0 and hrfdcnt < exportHr:
                             bAdd = True
                             if datefdcnt != 1: # not latest date only 3 hrs
                                 if hrfdcnt > previousdatehrs:
@@ -219,7 +219,7 @@ def getMarketSuffix(spark, view, market, logf):
             marketsuffix = "null"
         return marketsuffix
 
-def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap, logf = None):
+def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap, jobsettingobj, logf = None):
 
     df = None
     tempview = 'nokiakpi_{}'.format(filetype)
@@ -245,7 +245,7 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
     datetimearr = []
     previousdatehrs = 3
     #datetimearr = getdatadatetime(spark, df, tempview, logf)
-    datetimearr = getdatadatetime2(pqfiletypedir, previousdatehrs, logf)
+    datetimearr = getdatadatetime2(pqfiletypedir, int(jobsettingobj['exportHr']), previousdatehrs, logf)
     if len(datetimearr) <= 0:
         spark.catalog.dropTempView(tempview)
         df = None
@@ -257,6 +257,11 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
     #   get hourly csv (previousdatehrs) if not latest date for every market
     #
     ##################
+
+    bturnoffdailyagg = True
+    if jobsettingobj['exportDaily'].lower() == "y":
+        bturnoffdailyagg = False
+    
     ret = 0
     finalret = 0
     kpidf = None
@@ -308,7 +313,7 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
             mktuidmap[marketsuffix] = '{}'.format(uidstr)
 
         # create daily results
-        if bcreatedailycsv:
+        if bcreatedailycsv and not bturnoffdailyagg:
             util.logMessage('{} - DAILY CSV: processing market: {} - date: {}'.format(filetype, date['pk_market'], date['pk_date']), logf)
             sqlquerydaily = sqlquery.replace("{where}", \
                 "where pk_market = '{}' and pk_date = '{}'".format(date['pk_market'], date['pk_date']))
@@ -317,7 +322,7 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
             sqlquerydaily = sqlquerydaily.replace("GROUP BY hl_date,", "GROUP BY ")
             finalcsvfilename = '{}_{}_{}_{}_{}'\
                 .format(aggcsvfdname, date['pk_date'], marketsuffix.lower(), date['pk_market'].replace(" ", "-").upper(), filetype.replace("_", "-"))
-            finalret += genAggregatecsv(spark, sqlquerydaily, aggcsvpath, finalcsvfilename, logf)
+            finalret += genAggregatecsv(spark, sqlquerydaily, aggcsvpath, finalcsvfilename, int(jobsettingobj['aggcsvcoalesce']), logf)
             
             bcreatedailycsv = False
 
@@ -336,7 +341,7 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
             sqlqueryhourly = sqlqueryhourly.replace("'unassigned' as MGR_RUN_ID", "'{}-{}' AS MGR_RUN_ID".format(str(date['pk_hr']).zfill(2), uidstr))
             finalcsvfilename = '{}_{}_{}_{}_{}_{}'\
                 .format(aggcsvfdname, date['pk_date'], marketsuffix.lower(), date['pk_market'].replace(" ", "-").upper(), str(date['pk_hr']).zfill(2), filetype.replace("_", "-"))
-            finalret += genAggregatecsv(spark, sqlqueryhourly, aggcsvpath, finalcsvfilename, logf)
+            finalret += genAggregatecsv(spark, sqlqueryhourly, aggcsvpath, finalcsvfilename, int(jobsettingobj['aggcsvcoalesce']), logf)
 
     spark.catalog.dropTempView(tempview)
     kpidf = None
@@ -344,7 +349,7 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
 
     return finalret
 
-def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, datetimearr=None):
+def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, jobsettingobj, datetimearr=None):
 
     uid = uuid.uuid1()
     if datetimearr is None:
@@ -362,6 +367,7 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
 
     # log file
     logf = None
+    '''
     logfile = os.path.join(csvpath, wfolder + ".log")
     try:
         logf = open(logfile, "w", 0) 
@@ -369,8 +375,10 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
         util.logMessage(e.errno)
         util.logMessage(getException())
         pass
+    '''
         
     util.logMessage('start kpi aggregation process ...', logf)
+    util.logMessage('job setting {}'.format(jobsettingobj), logf)
     util.logMessage('reading sql json file: {}'.format(sqljsonfile), logf)
     try:
         with open(sqljsonfile, 'r') as json_data:
@@ -416,7 +424,7 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
                             util.logMessage('empty sql query from: {}'.format(sqlobj), logf)
                             continue
                         else:
-                            ret = kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap, logf)
+                            ret = kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap, jobsettingobj, logf)
                             if ret == 0:
                                 aggsuccess += 1
                                 util.logMessage("aggregate type: {} SUCCESS".format(filetype), logf)
@@ -440,7 +448,7 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
 , sum(isys_ho_utran_srvcc_att_nb) as isys_ho_utran_srvcc_att_nb, sum(isys_ho_utran_srvcc_fail_nb) as isys_ho_utran_srvcc_fail_nb\
 , hl_date_hour, hl_date, hl_sector, 'unassigned' as hl_sectorlayer, hl_site, hl_cluster, hl_area, hl_market \
     From {view} {where} Group By mo_dn_source, mo_dn2, hl_date, hl_date_hour, hl_sector, hl_site, hl_cluster, hl_area, hl_market"
-    ret = kpiAppregation(spark, testquery, pqfiletypedir, csvpath, 'lte_isys_ho_utran_nb_sum', logf)
+    ret = kpiAppregation(spark, testquery, pqfiletypedir, csvpath, 'lte_isys_ho_utran_nb_sum', jobsettingobj, logf)
     '''
 
     util.logMessage("")
@@ -547,28 +555,47 @@ def convertColumn(df, name, new_type):
     newdf = newdf.withColumn(name, newdf.swap.cast(new_type)).drop("swap")
     return newdf
 
-def readLookupParquet(spark, lookupview, celllookuppk, logf):
+def readLookupParquet(spark, vendor, tech, lookupview, celllookuppk, logf):
 
     util.logMessage("reading lookup parquet: {}".format(celllookuppk), logf)
 
+    datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+    tempview = '{}_{}_{}_{}'.format(tech, vendor, datetimearr[0], datetimearr[1])
     dfLookup = None
     try:
         dfLookup = spark.read.parquet(celllookuppk)
+        dfLookup.createOrReplaceTempView(tempview)
+    except:
+        util.printTrace(logf)
+    finally:
+        if dfLookup is None:
+            spark.catalog.dropTempView(tempview)
+            util.logMessage('lookup data frame empty', logf)
+            return dfLookup
+
+    try:
+        sublookupquery = "select * From {} where TECH = '{}' AND VENDOR = '{}'".format(tempview, tech, vendor)
+        util.logMessage('lookup filter query: {}'.format(sublookupquery), logf)
+        
+        dfLookup = spark.sql(sublookupquery)
         dfLookup.createOrReplaceTempView(lookupview)
     except:
         util.printTrace(logf)
     finally:
+        spark.catalog.dropTempView(tempview)
         return dfLookup
 
-def createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, logf):
+def createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, loadfactor, logf):
 
-    lookupview = '{}{}lookup'.format(tech.lower(), vendor.lower())
-    dfLookup = readLookupParquet(spark, lookupview, celllookuppk, logf)
+    datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+    lookupview = '{}{}lookup_{}_{}'.format(tech.lower(), vendor.lower(), datetimearr[0], datetimearr[1])
+    dfLookup = readLookupParquet(spark, vendor, tech, lookupview, celllookuppk, logf)
     if dfLookup is None:
         util.logMessage('failed to read lookup parquet: {}'.format(celllookuppk), logf)
         return 1
 
     util.logMessage('creating parquet file ...', logf)
+    util.logMessage('load factor: {} ...'.format(loadfactor), logf)
     
     sc = spark.sparkContext
 
@@ -595,7 +622,6 @@ def createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetp
             bhasparquet = True
     
         fcount = 0
-        loadfactor = 10
         uniondf = None
         for fn in fg['files']: 
             df = None
@@ -637,7 +663,8 @@ def createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetp
             else:
                 ret = saveParquetFile(spark, vendor, tech, uniondf, 'append', lookupview, parquettype, parquettypepath, logf)
         uniondf = None
-        
+
+    spark.catalog.dropTempView(lookupview) 
     return 0
 
 def saveParquetFile(spark, vendor, tech, df, mode, lookupview, parquettype, parquettypepath, logf):
@@ -651,7 +678,7 @@ def saveParquetFile(spark, vendor, tech, df, mode, lookupview, parquettype, parq
 , IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster\
 , IFNULL(l.MARKET_SUFFIX,'unassigned') AS HL_Market_Suffix\
 , IFNULL(l.AREA,'unassigned') AS HL_Area \
-from {} k left join {} l on k.MO_DN2 = l.CELL_UID AND l.TECH = '{}' AND l.VENDOR = '{}'".format(parquettype, lookupview, tech.upper(), vendor.upper())
+from {} k left join {} l on k.MO_DN2 = l.CELL_UID".format(parquettype, lookupview)
     
     try:
         util.logMessage('lookup query: {}'.format(lookupquery), logf)
@@ -673,6 +700,7 @@ from {} k left join {} l on k.MO_DN2 = l.CELL_UID AND l.TECH = '{}' AND l.VENDOR
     joindf = joindf.withColumn("pk_hr", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'HH'))
     
     try:
+        util.logMessage('saving {} parquet ...'.format(parquettype), logf)
         joindf.write \
             .partitionBy('pk_date', 'pk_market', 'pk_hr') \
             .mode(mode) \
@@ -787,10 +815,13 @@ def main():
         --driver-memory 512M --executor-memory 916M --total-executor-cores 8
         /home/imnosrf/ttskpiagg/code/lte-nokia/lte_nokia_aggregator.py 1 NOKIA LTE TMO
         /mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput
-        "/mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput/staging/ttskpiagg_NOKIA_LTE_20170731_152109520_TMO/*.txt" /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
-        /mnt/nfsi01/ttskpiraw/lte-nokia/parquet /mnt/nfso01/ttskpiraw/lte-nokia/dbloaderInput
+        "/mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput/staging/ttskpiagg_NOKIA_LTE_20170731_152109520_TMO/*.txt"
+        /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
+        /mnt/nfsi01/ttskpiraw/lte-nokia/parquet
+        /mnt/nfso01/ttskpiraw/lte-nokia/dbloaderInput
+        '{"loadFactor":"10","aggcsvcoalesce":"8","exportHr":"3","exportDaily":"N"}'
         '''
-        if argvs < 9:
+        if argvs < 11:
             util.logMessage("incorrect arguments")
             return 1
 
@@ -802,8 +833,25 @@ def main():
         celllookuppk = sys.argv[7]
         parquetpath = sys.argv[8]
         aggregationcsvpath = sys.argv[9]
-        #datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
-
+        optionjson = sys.argv[10]
+        if optionjson == '':
+            optionjson = '{"loadFactor":"10","aggcsvcoalesce":"8","exportHr":"3","exportDaily":"N"}'
+        jobsettingobj = {}
+        try:
+            jobsettingobj = json.loads(optionjson)
+        except:
+            optionjson = '{"loadFactor":"10","aggcsvcoalesce":"8","exportHr":"3","exportDaily":"N"}'
+            jobsettingobj = json.loads(optionjson)
+            pass
+        if 'loadFactor' not in jobsettingobj:
+            jobsettingobj['loadFactor'] = '10'
+        if 'aggcsvcoalesce' not in jobsettingobj:
+            jobsettingobj['aggcsvcoalesce'] = '8'
+        if 'exportHr' not in jobsettingobj:
+            jobsettingobj['exportHr'] = '3'
+        if 'exportDaily' not in jobsettingobj:
+            jobsettingobj['exportDaily'] = 'N'
+        
         stagingpath = os.path.join(os.path.dirname(parserresultspath), "..")
         wfolder = os.path.basename(os.path.dirname(parserresultspath))
         wfolderpath = os.path.dirname(parserresultspath)
@@ -816,7 +864,7 @@ def main():
         datetimearr.append(wfolderarr[4])
 
         # ttskpiagg_ERICSSON_LTE_20170731_152800832_TMO
-        appName = 'ttskpiagg_{}_{}_{}_{}_{}'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
+        appName = 'stg3_ttskpiagg_{}_{}_{}_{}_{}_a'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
 
         # log file
         logf = None
@@ -866,7 +914,7 @@ def main():
             .appName(appName) \
             .getOrCreate()
 
-        ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, logf)
+        ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, int(jobsettingobj['loadFactor']), logf)
  
         # archive parser output
         util.logMessage("packing parser results ...", logf)
@@ -874,7 +922,7 @@ def main():
         endProcess(wfolderpath, logf)
 
         # aggregate results
-        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, datetimearr)
+        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, jobsettingobj, datetimearr)
         spark.stop()
 
     elif funcid == '2':
@@ -886,9 +934,9 @@ def main():
         "/mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput/staging/ttskpiagg_NOKIA_LTE_20170731_152109520_TMO/*.txt"
         /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
         /mnt/nfsi01/ttskpiraw/umts-nokia/parquet
-        /mnt/nfso01/ttskpiraw/umts-nokia/dbloaderInput
+        '{"loadFactor":"10"}'
         '''
-        if argvs < 9:
+        if argvs < 10:
             util.logMessage("incorrect arguments")
             return 1
 
@@ -899,9 +947,19 @@ def main():
         parserresultspath = sys.argv[6]
         celllookuppk = sys.argv[7]
         parquetpath = sys.argv[8]
-        aggregationcsvpath = sys.argv[9]
-        #datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
-
+        optionjson = sys.argv[9]
+        if optionjson == '':
+            optionjson = '{"loadFactor":"10"}'
+        jobsettingobj = {}
+        try:
+            jobsettingobj = json.loads(optionjson)
+        except:
+            optionjson = '{"loadFactor":"10"}'
+            jobsettingobj = json.loads(optionjson)
+            pass
+        if 'loadFactor' not in jobsettingobj:
+            jobsettingobj['loadFactor'] = '10'
+        
         stagingpath = os.path.join(os.path.dirname(parserresultspath), "..")
         wfolder = os.path.basename(os.path.dirname(parserresultspath))
         wfolderpath = os.path.dirname(parserresultspath)
@@ -914,7 +972,7 @@ def main():
         datetimearr.append(wfolderarr[4])
 
         # ttskpiagg_ERICSSON_LTE_20170731_152800832_TMO
-        appName = 'ttskpiagg_{}_{}_{}_{}_{}'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
+        appName = 'stg3_ttskpiagg_{}_{}_{}_{}_{}_b'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
         
         # log file
         logf = None
@@ -964,9 +1022,7 @@ def main():
             .appName(appName) \
             .getOrCreate()
 
-        #################
-        ret = 0
-        #ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, logf)
+        ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, int(jobsettingobj['loadFactor']), logf)
 
         # archive parser output
         util.logMessage("packing parser results ...", logf)
@@ -982,8 +1038,9 @@ def main():
          /home/imnosrf/ttskpiraw/code/lte-nokia/lte_nokia_aggregator.py 3 NOKIA LTE TMO
          /mnt/nfsi01/ttskpiraw/lte-nokia/parquet
          /mnt/nfsi01/ttskpiraw/lte-nokia/dbloaderInput
+         '{"aggcsvcoalesce":"8","exportHr":"3","exportDaily":"N"}'
         '''
-        if argvs < 7:
+        if argvs < 8:
             util.logMessage("incorrect arguments")
             return 1
 
@@ -992,8 +1049,25 @@ def main():
         carr = sys.argv[4]
         parquetpath = sys.argv[5]
         aggregationcsvpath = sys.argv[6]
-
-        appName = '{} {} kpi aggregation'.format(vendor.lower(), tech.lower())
+        optionjson = sys.argv[7]
+        if optionjson == '':
+            optionjson = '{"aggcsvcoalesce":"8","exportHr":"3","exportDaily":"N"}'
+        jobsettingobj = {}
+        try:
+            jobsettingobj = json.loads(optionjson)
+        except:
+            optionjson = '{"aggcsvcoalesce":"8","exportHr":"3","exportDaily":"N"}'
+            jobsettingobj = json.loads(optionjson)
+            pass
+        if 'aggcsvcoalesce' not in jobsettingobj:
+            jobsettingobj['aggcsvcoalesce'] = '8'
+        if 'exportHr' not in jobsettingobj:
+            jobsettingobj['exportHr'] = '3'
+        if 'exportDaily' not in jobsettingobj:
+            jobsettingobj['exportDaily'] = 'N'
+            
+        datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+        appName = 'stg3_ttskpiagg_{}_{}_{}_{}_{}_c'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
         
         # aggregation
         spark = SparkSession \
@@ -1004,7 +1078,7 @@ def main():
         util.logMessage("=== {}: results creation - aggregation ===".format(appName))
 
         sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
-        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, None)
+        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, jobsettingobj, datetimearr)
 
         spark.stop()
         

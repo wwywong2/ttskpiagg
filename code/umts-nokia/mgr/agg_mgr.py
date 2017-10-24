@@ -40,9 +40,10 @@ procDatetimeArr[1] = procDatetimeArr[1][:-3]
 ## globals
 prev_jobname = ""
 check_ctr = 0
+exportOnly = False
 
 # argv[1] - input dir
-# argv[2] - output dir
+# argv[2] - output dir - if empty, no export csv
 # argv[3] - cell lookup parquet dir
 # argv[4] - output parquet dir
 # argv[5] - option json string (optional); 
@@ -73,8 +74,10 @@ if len(sys.argv) < 6:
    sys.exit(2)
 
 # argv[5] - option json - get first to get all options
+optionJSONStr = ""
 optionJSON = ""
 if len(sys.argv) > 5:
+   optionJSONStr = sys.argv[5]
    optionJSON = sys.argv[5]
 if optionJSON == "":
    optionJSON = '{"master":"", "masterPort":5050}'
@@ -175,14 +178,19 @@ except OSError:
 # argv[1] - input dir
 input_dir = sys.argv[1]
 input_dir = input_dir.rstrip('/')
-if not os.path.isdir(input_dir):
+if input_dir == '':
+   exportOnly = True
+if input_dir != '' and not os.path.isdir(input_dir):
    util.logMessage("Failed to open input location \"%s\"!" % input_dir)
    util.logMessage("Process terminated.")
    util.endProcess(lockpath, 2)
 
 # create staging (if not exist)
-staging_dir = input_dir+'/staging'
-if not os.path.isdir(staging_dir): # create if not exist
+if exportOnly:
+   staging_dir = 'placeholder/staging'
+else:
+   staging_dir = input_dir+'/staging'
+if not exportOnly and not os.path.isdir(staging_dir): # create if not exist
    try:
       os.mkdir(staging_dir)
    except:
@@ -192,7 +200,7 @@ if not os.path.isdir(staging_dir): # create if not exist
 
 # create secondary staging
 staging_dir_sub = staging_dir + "/ttskpiagg_%s_%s_%s_%s_TMO" % (optionJSON[u'vendorFULL'], optionJSON[u'techUp'], procDatetimeArr[0], procDatetimeArr[1])
-if not os.path.isdir(staging_dir_sub): # create if not exist
+if not exportOnly and not os.path.isdir(staging_dir_sub): # create if not exist
    try:
       os.mkdir(staging_dir_sub)
    except:
@@ -203,7 +211,7 @@ if not os.path.isdir(staging_dir_sub): # create if not exist
 # argv[2] - output dir
 output_dir = sys.argv[2]
 output_dir = output_dir.rstrip('/')
-if not os.path.isdir(output_dir):
+if output_dir != '' and not os.path.isdir(output_dir):
    util.logMessage("Failed to open output location \"%s\"!" % output_dir)
    util.logMessage("Process terminated.")
    util.endProcess(lockpath, 2)
@@ -519,8 +527,8 @@ def canStartNewJob(statusJSON):
 def worker(seqfile):
 
 	global prev_jobname
-        seqfile_dir, seqfile_file = os.path.split(seqfile)
-	jobname = seqfile_file
+	seqfile_dir, seqfile_file = os.path.split(seqfile)
+	jobname = 'stg3_' + seqfile_file
 	jobname = jobname.replace(' ', '-') # for cluster mode, job name should not contain space - spark bug
 
 	util.logMessage("Task %s start..." % jobname)
@@ -535,7 +543,7 @@ def worker(seqfile):
 			exec_str_master = "mesos://%s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort'])
 
 	# create spark string
-        exec_str_spark = "/opt/spark/bin/spark-submit \
+	exec_str_spark = "/opt/spark/bin/spark-submit \
 --master %s \
 --deploy-mode %s \
 --driver-memory %s \
@@ -552,25 +560,42 @@ def worker(seqfile):
 			"file://%s/../schema/%s_%s_cell_avail_schema.json" % (curr_py_dir, optionJSON[u'tech'], optionJSON[u'vendor']),
 			"file://%s/../sql/%s_%s_sql.json" % (curr_py_dir, optionJSON[u'tech'], optionJSON[u'vendor']))
 
-	'''
-	# create config json
-	if optionJSON[u'tech'] == 'lte' and optionJSON[u'vendor'] == 'eric':
-		pNum = "%d" % (optionJSON[u'exec_core_per_job']/2)
-		ovrWr = 'false'
-		ldFact = '3'
-	elif optionJSON[u'tech'] == 'umts' and optionJSON[u'vendor'] == 'eric':
-		pNum = "null" 
-		ovrWr = 'false'
-		ldFact = '20'	
-	exe_str_config_json = "'{\
-\"partitionNum\":%s, \
-\"overwrite\":%s, \
-\"loadFactor\":%s}'" % (pNum, ovrWr, ldFact)
-	'''
-	
 	# create python string
 	exec_str_py = "%s/../%s_%s_aggregator.py" % (curr_py_dir, optionJSON[u'tech'], optionJSON[u'vendor'])
-	exec_str_app = "%s \
+	if exportOnly: # mode 3 - export csv only
+		exec_str_app = "%s \
+3 \
+%s \
+%s \
+TMO \
+\"%s\" \
+\"%s\" \
+'%s'" % (exec_str_py, 
+		optionJSON[u'vendorUp'],
+		optionJSON[u'techUp'],
+		output_parq,
+		output_dir,
+		optionJSONStr)
+	elif output_dir == '': # mode 2 - create parquet only
+		exec_str_app = "%s \
+2 \
+%s \
+%s \
+TMO \
+\"%s\" \
+\"%s/*.txt\" \
+\"%s\" \
+\"%s\" \
+'%s'" % (exec_str_py, 
+		optionJSON[u'vendorUp'],
+		optionJSON[u'techUp'],
+		input_dir,
+		seqfile, 
+		input_celllookup_parq,
+		output_parq,
+		optionJSONStr)
+	else: # mode 1 - create parquet and export csv
+		exec_str_app = "%s \
 1 \
 %s \
 %s \
@@ -579,16 +604,19 @@ TMO \
 \"%s/*.txt\" \
 \"%s\" \
 \"%s\" \
-\"%s\"" % (exec_str_py, 
+\"%s\" \
+'%s'" % (exec_str_py, 
 		optionJSON[u'vendorUp'],
 		optionJSON[u'techUp'],
 		input_dir,
 		seqfile, 
 		input_celllookup_parq,
 		output_parq,
-		output_dir)
+		output_dir,
+		optionJSONStr)
 	if proc_mode != 'cluster': # client - support multi master (zookeeper)
-		exec_str_app += " &"
+		#exec_str_app += " &" # disable background job for agg to keep app locked and prevent next task from running if this one not finish
+		pass
 	else: # cluster - currently not support multi master (zookeeper)
 		pass
 
@@ -634,13 +662,42 @@ def main(input_dir, optionJSON):
    exit(0)
    '''
 
-   # go thru all seq file/folder
-   inputSeqPath = input_dir+"/ttskpiraw_%s_%s_*_TMO*.tgz" % (optionJSON[u'vendorFULL'], optionJSON[u'techUp'])
-   inputSeqList = glob.glob(inputSeqPath)
-   if len(inputSeqList) <= 0:  # no file
-      util.logMessage("No paser output to process: %s" % inputSeqPath)
-      os.system("rm -rf '%s'" % staging_dir_sub) # remove staging sub folder (since will not be removed by proc)
-      util.endProcess(lockpath, 0)
+   global exportOnly
+
+   if not exportOnly:
+      # go thru all seq file/folder
+      inputSeqPath = input_dir+"/ttskpiraw_%s_%s_*_TMO*.tgz" % (optionJSON[u'vendorFULL'], optionJSON[u'techUp'])
+      inputSeqList = glob.glob(inputSeqPath)
+      if len(inputSeqList) <= 0:  # no file
+         util.logMessage("No parser output to process: %s" % inputSeqPath)
+         os.system("rm -rf '%s'" % staging_dir_sub) # remove staging sub folder (since will not be removed by proc)
+         if output_dir == '': # if no input, and also no output, end process
+            util.endProcess(lockpath, 0)
+         else: # if no input, but have output, only do export
+            exportOnly = True
+
+
+   # export only mode
+   if exportOnly:
+      # submit one process to work on the whole folder (of multiple txt file)
+      try:
+         # get status
+         statusJSON = getStatusJSON_mesos()
+         bStartNewJob, delay_sec = canStartNewJob(statusJSON)
+         while (bStartNewJob == False):
+            time.sleep(delay_sec)
+            bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
+
+         # process file
+         worker(staging_dir_sub)
+
+      except Exception as e:
+         util.logMessage("Error: failed to export file %s\n%s" % (staging_dir_sub, e))
+      except:
+         util.logMessage("Unexpected error")
+
+      return 0
+
 
    # move seq file into staging_sub first to prevent other proc from touching them
    inputSeqStageList = []
