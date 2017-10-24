@@ -341,8 +341,8 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None, overwri
       archiveCsvTgz = "ttskpiagg_%s_%s_%s_%s_%s.tgz" % (
         csvArr[1], csvArr[2], procDatetimeArr[0], procDatetimeArr[1], csvArr[-1])
 
-      util.logMessage('zipping files: cd %s && tar -cvzf %s *.txt' % (inputCsvTempDir, archiveCsvTgz))
-      os.system("cd %s && tar -cvzf %s *.txt" % (inputCsvTempDir, archiveCsvTgz))
+      util.logMessage('zipping files: cd %s && tar -cvzf %s *.tgz' % (inputCsvTempDir, archiveCsvTgz))
+      os.system("cd %s && tar -cvzf %s *.tgz" % (inputCsvTempDir, archiveCsvTgz))
       os.system("rm -rf '%s'" % (archiveDir+'/'+archiveCsvTgz)) # remove old output file
       shutil.move(inputCsvTempDir+'/'+archiveCsvTgz, archiveDir+'/'+archiveCsvTgz)
 
@@ -440,8 +440,8 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
       archiveCsvTgz = "ttskpiagg_%s_%s_%s_%s_%s.tgz" % (
 	csvArr[1], csvArr[2], procDatetimeArr[0], procDatetimeArr[1], csvArr[-1])
 
-      util.logMessage('zipping files: cd %s && tar -cvzf %s *.txt' % (inputCsvTempDir, archiveCsvTgz))
-      os.system("cd %s && tar -cvzf %s *.txt" % (inputCsvTempDir, archiveCsvTgz))
+      util.logMessage('zipping files: cd %s && tar -cvzf %s *.tgz' % (inputCsvTempDir, archiveCsvTgz))
+      os.system("cd %s && tar -cvzf %s *.tgz" % (inputCsvTempDir, archiveCsvTgz))
       os.system("rm -rf '%s'" % (archiveDir+'/'+archiveCsvTgz)) # remove old output file
       shutil.move(inputCsvTempDir+'/'+archiveCsvTgz, archiveDir+'/'+archiveCsvTgz)
 

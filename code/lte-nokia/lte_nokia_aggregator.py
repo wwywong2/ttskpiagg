@@ -54,9 +54,10 @@ def subprocessShellExecute(cmd):
 
 def endProcess(removedir, f):
 
-    if not f.closed:
-        f.flush()
-        f.close()
+    if f is not None:
+        if not f.closed:
+            f.flush()
+            f.close()
         
     if os.path.isdir(removedir):
         util.removeDir(removedir)
@@ -157,7 +158,6 @@ order by t1.pk_market ASC, t1.pk_date DESC, t1.pk_hr DESC".format(getmaxdatesql)
     util.logMessage('get date time query: {}'.format(getdatetimelistsql), logf)
     try:
         datetimearr = spark.sql(getdatetimelistsql).collect()
-        print datetimearr
         if len(datetimearr) <= 0:
             util.logMessage('unable to get date hour information from parquet', logf)
     except:
@@ -344,10 +344,11 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, csvpath, filetype, mktuidmap,
 
     return finalret
 
-def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath):
+def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, datetimearr=None):
 
     uid = uuid.uuid1()
-    datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+    if datetimearr is None:
+        datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
     wfolder='ttskpiagg_{}_{}_{}_{}_{}'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
     csvpath = os.path.join(aggregationcsvpath, wfolder)
     if os.path.isdir(csvpath):
@@ -521,8 +522,18 @@ def packParserResults(wfolderpath, archivepath, logf):
     wfolder = os.path.basename(wfolderpath)
     wfolderdir = os.path.dirname(wfolderpath)
     archivegzpath = os.path.join(archivepath, wfolder + ".tgz")
-    util.logMessage('archiving sequence input file to {}'.format(archivegzpath), logf)
-    cmd = 'tar -C {} -zcvf {} {}'.format(wfolderdir, archivegzpath, wfolder)
+    
+    # remove unknow path
+    unknownpath = os.path.join(wfolderpath, "unknown")
+    if os.path.isdir(unknownpath):
+        util.removeDir(unknownpath)
+
+    # remove txt files
+    for parserresultfiles in glob.glob(os.path.join(wfolderpath, "*.txt")):
+        os.remove(parserresultfiles)
+        
+    util.logMessage('archiving parser result gz file to {}'.format(archivegzpath), logf)
+    cmd = 'cd {} && tar -zcvf {} *.tgz'.format(wfolderpath, archivegzpath)
     util.logMessage('archive cmd: {}'.format(cmd), logf)
     ret = subprocessShellExecute(cmd)
     if ret['ret']:
@@ -686,14 +697,16 @@ def groupFileType(inputpath, schemapath, wfolderpath, logf):
     filetypegroup['groups'] = []
     filetypegroup['noschemagroups'] = []
 
+    '''
     # move input files first
     for fn in glob.glob(inputpath):
         filename = os.path.basename(fn)
         os.rename(fn, os.path.join(wfolderpath, filename))
-
+    '''
+    
     # grouping files
-    wfolderpathfiles = os.path.join(wfolderpath, '*')
-    for fn in glob.glob(wfolderpathfiles):
+    #wfolderpathfiles = os.path.join(wfolderpath, '*')
+    for fn in glob.glob(inputpath):
 
         filegroupobj = {}
         filename = os.path.basename(fn)
@@ -726,7 +739,6 @@ def groupFileType(inputpath, schemapath, wfolderpath, logf):
             bfindschema = False
             schemajson = ''
             for schemajson in os.listdir(schemapath):
-                print schemajson
                 if schemajson.endswith(".json"):
                     if schemajson == targetschemafile:
                         bfindschema = True
@@ -773,10 +785,10 @@ def main():
         '''
         spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
         --driver-memory 512M --executor-memory 916M --total-executor-cores 8
-        /home/tts/test_results/code/umts-nokia/umts_nokia_aggregator.py 1 NOKIA UMTS TMO
-        /mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput
-        "/mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput/new_set_sample/*.txt" /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
-        /mnt/nfsi01/ttskpiraw/umts-nokia/parquet /mnt/nfsi01/ttskpiraw/umts-nokia/dbloaderInput
+        /home/imnosrf/ttskpiagg/code/lte-nokia/lte_nokia_aggregator.py 1 NOKIA LTE TMO
+        /mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput
+        "/mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput/staging/ttskpiagg_NOKIA_LTE_20170731_152109520_TMO/*.txt" /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
+        /mnt/nfsi01/ttskpiraw/lte-nokia/parquet /mnt/nfso01/ttskpiraw/lte-nokia/dbloaderInput
         '''
         if argvs < 9:
             util.logMessage("incorrect arguments")
@@ -790,35 +802,25 @@ def main():
         celllookuppk = sys.argv[7]
         parquetpath = sys.argv[8]
         aggregationcsvpath = sys.argv[9]
-        datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+        #datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
 
-        appName = '{} {} kpi aggregation'.format(vendor.lower(), tech.lower())
-
-        stagingpath = os.path.join(aggregatorInput, "staging")
-        if not os.path.isdir(stagingpath):
-            try:
-                os.mkdir(stagingpath)
-            except:
-                util.logMessage("create staging directory failed: {}".format(stagingpath))
-                util.logMessage(getException())
-                return 1
-        
-        # create working directory
-        uid = uuid.uuid1()
-        #wfolder='{}'.format(str(uid))
-        wfolder='ttskpiraw_{}_{}_{}_{}_{}'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
-        wfolderpath = os.path.join(aggregatorInput, "staging", wfolder)
-        if os.path.isdir(wfolderpath):
-            util.removeDir(wfolderpath)
-        try:
-            os.mkdir(wfolderpath)
-        except:
-            util.logMessage("create working directory failed: {}".format(wfolderpath))
-            util.logMessage(getException())
+        stagingpath = os.path.join(os.path.dirname(parserresultspath), "..")
+        wfolder = os.path.basename(os.path.dirname(parserresultspath))
+        wfolderpath = os.path.dirname(parserresultspath)
+        wfolderarr = wfolder.split('_')
+        if len(wfolderarr)<6:
+            util.logMessage("Input staging folder incorrect {}".format(wfolderarr))
             return 1
+        datetimearr = []
+        datetimearr.append(wfolderarr[3])
+        datetimearr.append(wfolderarr[4])
+
+        # ttskpiagg_ERICSSON_LTE_20170731_152800832_TMO
+        appName = 'ttskpiagg_{}_{}_{}_{}_{}'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
 
         # log file
         logf = None
+        '''
         logfile = os.path.join(wfolderpath, wfolder + ".log")
         try:
             logf = open(logfile, "w", 0) 
@@ -826,7 +828,8 @@ def main():
             util.logMessage(e.errno)
             util.logMessage(getException())
             pass
-
+        '''
+        
         util.logMessage("=== {}: results creation - full ===".format(appName), logf)
 
         archivepath = os.path.join(aggregatorInput, "archive")
@@ -840,9 +843,9 @@ def main():
                 util.logMessage(getException())
                 return 1
 
-        if not os.path.isdir(parserresultspath):
-            util.logMessage("creating parquet root path: {}".format(parserresultspath), logf)
-            os.mkdir(parserresultspath)
+        if not os.path.isdir(parquetpath):
+            util.logMessage("creating parquet root path: {}".format(parquetpath), logf)
+            os.mkdir(parquetpath)
 
         schemapath = os.path.join(root, 'schema')
         sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
@@ -851,6 +854,7 @@ def main():
         filetypegroup = groupFileType(parserresultspath, schemapath, wfolderpath, logf)
         if filetypegroup['filecount'] <= 0 or len(filetypegroup['groups']) <= 0:
             util.logMessage("no input file can be processed in: {}".format(parserresultspath), logf)
+            packParserResults(wfolderpath, archivepath, logf)
             endProcess(wfolderpath, logf)
             return 1            
 
@@ -863,22 +867,121 @@ def main():
             .getOrCreate()
 
         ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, logf)
-
+ 
         # archive parser output
         util.logMessage("packing parser results ...", logf)
         packParserResults(wfolderpath, archivepath, logf)
         endProcess(wfolderpath, logf)
 
         # aggregate results
-        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath)
+        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, datetimearr)
+        spark.stop()
+
+    elif funcid == '2':
+        '''
+        spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
+        --driver-memory 512M --executor-memory 916M --total-executor-cores 8
+        /home/imnosrf/ttskpiagg/code/umts-nokia/umts_nokia_aggregator.py 1 NOKIA UMTS TMO
+        /mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput
+        "/mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput/staging/ttskpiagg_NOKIA_LTE_20170731_152109520_TMO/*.txt"
+        /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
+        /mnt/nfsi01/ttskpiraw/umts-nokia/parquet
+        /mnt/nfso01/ttskpiraw/umts-nokia/dbloaderInput
+        '''
+        if argvs < 9:
+            util.logMessage("incorrect arguments")
+            return 1
+
+        vendor = sys.argv[2]
+        tech = sys.argv[3]
+        carr = sys.argv[4]
+        aggregatorInput = sys.argv[5]
+        parserresultspath = sys.argv[6]
+        celllookuppk = sys.argv[7]
+        parquetpath = sys.argv[8]
+        aggregationcsvpath = sys.argv[9]
+        #datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+
+        stagingpath = os.path.join(os.path.dirname(parserresultspath), "..")
+        wfolder = os.path.basename(os.path.dirname(parserresultspath))
+        wfolderpath = os.path.dirname(parserresultspath)
+        wfolderarr = wfolder.split('_')
+        if len(wfolderarr)<6:
+            util.logMessage("Input staging folder incorrect {}".format(wfolderarr))
+            return 1
+        datetimearr = []
+        datetimearr.append(wfolderarr[3])
+        datetimearr.append(wfolderarr[4])
+
+        # ttskpiagg_ERICSSON_LTE_20170731_152800832_TMO
+        appName = 'ttskpiagg_{}_{}_{}_{}_{}'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
+        
+        # log file
+        logf = None
+        '''
+        logfile = os.path.join(wfolderpath, wfolder + ".log")
+        try:
+            logf = open(logfile, "w", 0) 
+        except IOError, e:
+            util.logMessage(e.errno)
+            util.logMessage(getException())
+            pass
+        '''
+        
+        util.logMessage("=== {}: results creation - full ===".format(appName), logf)
+
+        archivepath = os.path.join(aggregatorInput, "archive")
+        if not os.path.isdir(archivepath):
+            util.logMessage("archive path does not exist {}".format(archivepath), logf)
+            try:
+                util.logMessage("creating archive path: {}".format(archivepath), logf)
+                os.mkdir(archivepath)
+            except:
+                util.logMessage("create archive directory failed: {}".format(archivepath))
+                util.logMessage(getException())
+                return 1
+
+        if not os.path.isdir(parquetpath):
+            util.logMessage("creating parquet root path: {}".format(parquetpath), logf)
+            os.mkdir(parquetpath)
+           
+        schemapath = os.path.join(root, 'schema')
+        sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
+            
+        # group file type
+        filetypegroup = groupFileType(parserresultspath, schemapath, wfolderpath, logf)
+        if filetypegroup['filecount'] <= 0 or len(filetypegroup['groups']) <= 0:
+            util.logMessage("no input file can be processed in: {}".format(parserresultspath), logf)
+            packParserResults(wfolderpath, archivepath, logf)
+            endProcess(wfolderpath, logf)
+            return 1            
+
+        util.logMessage(json.dumps(filetypegroup, indent=4), logf)
+
+        # create parquet file
+        spark = SparkSession \
+            .builder \
+            .appName(appName) \
+            .getOrCreate()
+
+        #################
+        ret = 0
+        #ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, logf)
+
+        # archive parser output
+        util.logMessage("packing parser results ...", logf)
+        packParserResults(wfolderpath, archivepath, logf)
+        endProcess(wfolderpath, logf)
+
         spark.stop()
 
     elif funcid == '3':
         '''
         spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
          --driver-memory 512M --executor-memory 916M --total-executor-cores 8
-         /home/imnosrf/test_results/code/lte-nokia/lte_nokia_aggregator.py 3 NOKIA LTE TMO /mnt/nfskpi/wyang/ttskpiraw/lte-nokia/parquet
-         /mnt/nfskpi/wyang/ttskpiraw/lte-nokia/aggregation
+         /home/imnosrf/ttskpiraw/code/lte-nokia/lte_nokia_aggregator.py 3 NOKIA LTE TMO
+         /mnt/nfsi01/ttskpiraw/lte-nokia/parquet
+         /mnt/nfsi01/ttskpiraw/lte-nokia/dbloaderInput
         '''
         if argvs < 7:
             util.logMessage("incorrect arguments")
@@ -901,7 +1004,7 @@ def main():
         util.logMessage("=== {}: results creation - aggregation ===".format(appName))
 
         sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
-        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath)
+        ret = runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggregationcsvpath, None)
 
         spark.stop()
         

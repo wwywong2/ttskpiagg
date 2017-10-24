@@ -61,10 +61,11 @@ check_ctr = 0
 #              "exec_core_per_job" : 4,
 #              "drvr_mem" : "512m",
 #              "exec_mem" : "2g",
-#              "logfile" : "" - empty = no log file
+#              "logfile" : "", - empty = no log file
+#              "partitionNum": null, --> None in python (no coalesce)
+#              "overwrite": false/true, --> False/True in python
+#              "loadFactor": 3
 #             }'
-##           "":null --> None in python (no coalesce)
-##           "":false/true --> False/True in python
 # argv[6] - (optional) "cluster" or "client" mode
 
 
@@ -124,6 +125,15 @@ if 'exec_mem' not in optionJSON:
       optionJSON[u'exec_mem'] = "2g"
 if 'logfile' not in optionJSON:
    optionJSON[u'logfile'] = ""
+if 'overwrite' not in optionJSON: # lte-eric and umts-eric: False
+   optionJSON[u'overwrite'] = False
+if 'partitionNum' not in optionJSON: # lte-eric and umts-eric: None - default partition
+   optionJSON[u'partitionNum'] = None
+if 'loadFactor' not in optionJSON: # lte-eric: 3; umts-eric: 20
+   if optionJSON[u'tech'] == "lte":
+      optionJSON[u'loadFactor'] = 3
+   else: # umts
+      optionJSON[u'loadFactor'] = 20
 
 # init logger
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
@@ -554,13 +564,25 @@ def worker(seqfile):
 
 	# create config json
 	if optionJSON[u'tech'] == 'lte' and optionJSON[u'vendor'] == 'eric':
-		pNum = "%d" % (optionJSON[u'exec_core_per_job']/2)
-		ovrWr = 'false'
-		ldFact = '3'
+		if optionJSON[u'partitionNum'] is None:
+			pNum = "null" 
+		else:
+			pNum = "%d" % int(optionJSON[u'partitionNum'])
+		if optionJSON[u'overwrite']:
+			ovrWr = 'true'
+		else:
+			ovrWr = 'false'
+		ldFact = "%d" % int(optionJSON[u'loadFactor'])
 	elif optionJSON[u'tech'] == 'umts' and optionJSON[u'vendor'] == 'eric':
-		pNum = "null" 
-		ovrWr = 'false'
-		ldFact = '20'	
+		if optionJSON[u'partitionNum'] is None:
+			pNum = "null" 
+		else:
+			pNum = "%d" % int(optionJSON[u'partitionNum'])
+		if optionJSON[u'overwrite']:
+			ovrWr = 'true'
+		else:
+			ovrWr = 'false'
+		ldFact = "%d" % int(optionJSON[u'loadFactor'])
 	exe_str_config_json = "'{\
 \"partitionNum\":%s, \
 \"overwrite\":%s, \
