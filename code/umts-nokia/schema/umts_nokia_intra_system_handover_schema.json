@@ -1,0 +1,260 @@
+[
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "MGR_RUN_ID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Region", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Market", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "OSS", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "timestamp", 
+        "name": "PERIOD_START_TIME", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "PERIOD_DURATION", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "BASEID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "LOCALMOID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "CELL_ID_1", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "CELL_ID_2", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "intra_intra_hho_att_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_intra_intra_hho_att_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "intra_inter_hho_att_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_intra_inter_hho_att_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "inter_hho_att_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_inter_hho_att_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "scc_started_cpich_ecno", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "scc_started_ul_sir_error", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "scc_started_active_set_upd", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "scc_started_other_reason", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "scc_intra_bts_successful", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "scc_inter_bts_successful", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "intra_intra_hho_att_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_intra_intra_hho_att_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "intra_inter_hho_att_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_intra_inter_hho_att_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "inter_hho_att_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_inter_hho_att_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "con_drps_hho_inter_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "con_drps_hho_intra_inter_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "con_drps_hho_intra_intra_nrt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "conn_drps_hho_inter_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "conn_drps_hho_intra_inter_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "conn_drps_hho_intra_intra_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "edch_scc_inter_bts_success", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "edch_scc_intra_bts_success", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "edch_scc_started", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hho_att_caused_sho_incap_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "immed_hho_csd_sho_incap_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "succ_hho_caused_sho_incap_rt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "HHO_ATT_CAUSED_SHO_INCAP_NRT", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "IMMED_HHO_CSD_SHO_INCAP_NRT", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "SUCC_HHO_SHO_INCAP_NRT", 
+        "nullable": true
+    }
+]

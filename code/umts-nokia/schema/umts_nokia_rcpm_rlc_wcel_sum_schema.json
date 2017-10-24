@@ -1,0 +1,110 @@
+[
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "MGR_RUN_ID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Region", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Market", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "OSS", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "timestamp", 
+        "name": "PERIOD_START_TIME", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "PERIOD_DURATION", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "BASEID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "LOCALMOID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "CELL_ID_1", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "CELL_ID_2", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_SDU_DL_PS_VOL_W_HSDPA", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_SDU_DL_PS_VOL_W_ALL", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_DL_MEAS_TIME_W_HSDPA", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_DL_MEAS_TIME_W_ALL", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_SDU_UL_PS_VOL_W_HSUPA", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_SDU_UL_PS_VOL_W_ALL", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_UL_MEAS_TIME_W_HSUPA", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "RLC_AM_UL_MEAS_TIME_W_ALL", 
+        "nullable": true
+    }
+]

@@ -4,6 +4,19 @@ import sys, subprocess, json
 import socket
 import time # This is required to include time module
 
+import linecache # for getException()
+
+import logging
+from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
+
+
+
+# setup logger
+mainLog = None
+
+
+
 ######## json_reader ########
 def json_reader(jsonFile):
     import json
@@ -23,23 +36,122 @@ def removeDir(path):
     import shutil
     return shutil.rmtree(path)
 
-def logMessage(message, logFilePt=None):
+def getException():
+    expobj = {}
+
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    linecache.checkcache(filename)
+    line = linecache.getline(filename, lineno, f.f_globals)
+
+    expobj['filename'] = filename
+    expobj['linenumber'] = lineno
+    expobj['line'] = line.strip()
+    expobj['err'] = exc_obj
+
+    return expobj
+
+def loggerSetup(loggerName='', outfile='', defaultLvl=logging.WARNING, timed=False, custFmtStr=''):
+
+    global mainLog
+
+    hostname = socket.gethostname()
+    fmtStr = '[%%(asctime)s.%%(msecs)03d @%s] %%(name)s %%(levelname)s: %%(message)s' % hostname
+    if custFmtStr != '':
+        fmtStr = custFmtStr
+
+    # set formatter
+    formatter = logging.Formatter(fmtStr, datefmt='%Y-%m-%d %H:%M:%S')
+
+    # set handler - stdout
+    hdlr_stdout = logging.StreamHandler(sys.stdout)
+    hdlr_stdout.setLevel(defaultLvl)
+    hdlr_stdout.setFormatter(formatter)
+
+    hdlr_rfile = None
+    hdlr_trfile = None
+
+    if outfile != '':
+        if not timed:
+            # set handler - rotating file
+            hdlr_rfile = RotatingFileHandler(outfile, maxBytes=1024*1024, backupCount=2)
+            hdlr_rfile.setLevel(defaultLvl)
+            hdlr_rfile.setFormatter(formatter)
+        else:
+            # set handler - timed rotating file - S M H D 'W0'-'W6'(mon-sun) 'midnight' 
+            hdlr_trfile = TimedRotatingFileHandler(outfile, when='D', interval=1, backupCount=4)
+            hdlr_trfile.setLevel(defaultLvl)
+            hdlr_trfile.setFormatter(formatter)
+    
+
+    # set logger
+    if loggerName == '':
+        logger = logging.getLogger(__name__)
+    else:
+        logger = logging.getLogger(loggerName)
+    logger.setLevel(defaultLvl)
+    logger.addHandler(hdlr_stdout) # output to stdout
+    if outfile != '':
+        if not timed:
+            logger.addHandler(hdlr_rfile) # output to rotating file
+        else:
+            logger.addHandler(hdlr_trfile) # output to timed rotating file
+
+    if mainLog is None: # only set global the first time this func is called
+        mainLog = logger # save to global
+
+    return logger
+
+# logic:
+# 1.) if file are specified, output to file and stdout (old method)
+# 2.) if logger are specified, output to logger
+# 3.) if mainLog are defined (global), output to mainLog
+# 4.) if all of above are not specified, output to stdout (old method) 
+def logMessage(message, logFilePt=None, logger=None, level=logging.INFO):
+
+    global mainLog
+
+    if logFilePt is not None:
+        logMessageInt(message, logFilePt)
+    elif logger is not None:
+        logMessageLog(message, logger, level)
+    elif mainLog is not None:
+        logMessageLog(message, mainLog, level)
+    else:
+        logMessageInt(message)
+
+# print message without logger
+def logMessageInt(message, logFilePt=None):
 
     hostname = socket.gethostname()
     msg = "[%s @%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), hostname, message)
 
     if (logFilePt is not None):
-        
+
         try:
             logFilePt.write("%s\n" % msg)
             logFilePt.flush()
         except:
             return False
-    
+
     print (msg)
     sys.stdout.flush() # flush buffer before executing next line
 
     return True
+
+# print message with logger
+def logMessageLog(message='', logger=None, level=logging.INFO):
+
+    if logger is None: # safeguard
+        return
+
+    logger.log(level, message)
+    # WES_TEST: do we need flush handler?
+    for hdlr in logging.root.handlers:
+       hdlr.flush()
+   
 
 def fileLineCount(filename):
     f = open(filename)                  
@@ -113,6 +225,28 @@ def copyFileToRemote2(serverAddr, serverUsr, serverPwd, localFile, remoteDestina
            '{}'.format(localFile), '{}@{}:{}'.format(serverUsr, serverAddr, remoteDestination)]
     '''
     cmd = 'sshpass -p %s scp -r %s %s@%s:%s' % (serverPwd, localFile, serverUsr, serverAddr, remoteDestination)
+    retObj = subprocessShellExecute(cmd)
+    return retObj
+
+def renameRemoteFile(serverAddr, serverUsr, serverPwd, remoteFile, remoteFileNew):
+    #sshpass -p "$webServerPwd" ssh $webServerUser@$webServer mv remoteFile remoteFileNew
+    retObj = {}
+    cmd = ['sshpass', '-p', '{}'.format(serverPwd), 'ssh', '{}@{}'.format(serverUsr, serverAddr), 'mv {} {}'.format(remoteFile, remoteFileNew)]
+    p = subprocess.call(cmd)
+    if p == 0:
+        retObj['ret'] = True
+    else:
+        retObj['ret'] = False
+    retObj['cmd'] = cmd
+    return retObj
+
+def renameRemoteFile2(serverAddr, serverUsr, serverPwd, remoteFile, remoteFileNew):
+    #sshpass -p "$webServerPwd" ssh $webServerUser@$webServer mv remoteFile remoteFileNew
+    retObj = {}
+    '''
+    cmd = ['sshpass', '-p', '{}'.format(serverPwd), 'ssh', '{}@{}'.format(serverUsr, serverAddr), 'mv {} {}'.format(remoteFile, remoteFileNew)]
+    '''
+    cmd = 'sshpass -p %s ssh %s@%s mv %s %s' % (serverPwd, serverUsr, serverAddr, remoteFile, remoteFileNew)
     retObj = subprocessShellExecute(cmd)
     return retObj
 
@@ -385,6 +519,41 @@ def getTokenInfo(filePath, bInZipFile = False):
     retObj['ret'] = True       
     return retObj
     
+
+def endProcess(lockpath, exitCode):
+   if os.path.isdir(lockpath):
+      logMessage("Remove lock %s" % lockpath)
+      try:
+         removeDir(lockpath)
+      except Exception as e:
+         logMessage("Remove lock %s failed\n%s" % (lockpath, e))
+         exitCode = 1
+
+   sys.exit(exitCode)
     
+
+# get mesos master with mesos-resolve
+def getMesosMaster(zkStr='zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos'):
+   cmd = "mesos-resolve %s" % zkStr
+   ret = subprocessShellExecute(cmd)
+   #print ret['cmd']
+   #print ret['ret']
+   #print ret['retCode']
+   #print "-%s-" % ret['outmsg'].strip()
+   #print "-%s-" % ret['errmsg'].strip()
+   if ret['ret']:
+      masterStrArr = ret['outmsg'].strip().split(':')
+   else: # error
+      masterStrArr = []
+
+   # init
+   master = ''
+   masterPort = '0'
+   if len(masterStrArr) >= 2: # error getting master
+      master = masterStrArr[0]
+      masterPort = masterStrArr[1]
+
+   return master, int(masterPort)
+
        
        

@@ -2,25 +2,7 @@
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "MGR_RUNID", 
-        "nullable": true
-    }, 
-    {
-        "metadata": {}, 
-        "type": "timestamp", 
-        "name": "HL_DATE", 
-        "nullable": true
-    }, 
-    {
-        "metadata": {}, 
-        "type": "string", 
-        "name": "HL_MARKET", 
-        "nullable": true
-    }, 
-    {
-        "metadata": {}, 
-        "type": "double", 
-        "name": "Cntr", 
+        "name": "MGR_RUN_ID", 
         "nullable": true
     }, 
     {
@@ -38,7 +20,7 @@
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "SubNetwork_2", 
+        "name": "OSS", 
         "nullable": true
     }, 
     {
@@ -51,305 +33,300 @@
         "metadata": {}, 
         "type": "double", 
         "name": "PERIOD_DURATION", 
-        "nullable": true,
-        "agg": "SUM"
+        "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "MeContext", 
-        "nullable": true,
-        "agg": "MIN"
+        "name": "BASEID", 
+        "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "UtranCell", 
-        "nullable": true,
-        "agg": "UtranCell"
+        "name": "LOCALMOID", 
+        "nullable": true
     }, 
     {
         "metadata": {}, 
-        "type": "double", 
-        "name": "pmAttNonBlindInterFreqHoCsSpeech12", 
-        "nullable": true,
-        "agg": "SUM"
+        "type": "string", 
+        "name": "CELL_ID_1", 
+        "nullable": true
     }, 
     {
         "metadata": {}, 
-        "type": "double", 
-        "name": "pmCellDowntimeAuto", 
-        "nullable": true,
-        "agg": "SUM"
-    }, 
-    {
-        "metadata": {}, 
-        "type": "double", 
-        "name": "pmCellDowntimeMan", 
+        "type": "string", 
+        "name": "CELL_ID_2", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmChSwitchAttemptUraFach", 
+        "name": "hs_e_req_hs_e_allo_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmChSwitchSuccUraFach", 
+        "name": "hs_e_req_d_d_allo_int_cell", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs128", 
+        "name": "hs_e_req_d_d_allo_bgr_cell", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs16", 
+        "name": "hs_e_req_hs_e_allo_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs384", 
+        "name": "hs_d_req_d_d_allo_int_cell", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs64", 
+        "name": "hs_d_req_d_d_allo_bgr_cell", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs8", 
+        "name": "hs_e_req_hs_d_allo_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsCommon", 
+        "name": "ps_setup_fail_ac_ul_nrt", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsIntHs", 
+        "name": "ps_setup_fail_ac_dl_nrt", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsStr128", 
+        "name": "ps_setup_fail_ac_cod_nrt", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsStr16", 
+        "name": "hs_e_req_hs_d_allo_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsStr64", 
+        "name": "hs_d_req_hs_d_allo_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmFailNonBlindInterFreqHoFailRevertCsSpeech12", 
+        "name": "hs_d_req_hs_d_allo_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoDirRetryAtt", 
+        "name": "hs_e_req_d_d_allo_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoLoadSharingRrcConnCs", 
+        "name": "hs_e_req_d_d_allo_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoLoadSharingRrcConnPs", 
+        "name": "hs_d_req_d_d_allo_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoNormalNasSignReleaseCs", 
+        "name": "ps_att_hsdsch_edch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoNormalRabReleaseSpeech", 
+        "name": "hs_d_req_d_d_allo_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishAttemptSpeech", 
+        "name": "d_d_req_d_d_allo_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishSuccessSpeech", 
+        "name": "d_d_req_d_d_allo_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishAttemptPacketInteractive", 
+        "name": "ps_att_hsdsch_edch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishSuccessPacketInteractive", 
+        "name": "ps_rel_norm_hs_e_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoSysRelSpeechNeighbr", 
+        "name": "ps_rel_norm_hs_e_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoSystemNasSignReleaseCs", 
+        "name": "ps_rel_norm_hs_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoSystemRabReleaseSpeech", 
+        "name": "ps_rel_norm_hs_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoTimesCellFailAddToActSet", 
+        "name": "ps_rel_norm_d_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSamplesDchDlRlcUserPacketThp", 
+        "name": "ps_att_hsdsch_dch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSamplesHsDlRlcUserPacketThp", 
+        "name": "ps_rel_norm_d_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSamplesUlRssi", 
+        "name": "ps_rel_rl_fail_hs_e_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSuccNonBlindInterFreqHoCsSpeech12", 
+        "name": "ps_rel_rl_fail_hs_e_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr12200RabEstablish", 
+        "name": "ps_rel_rl_fail_hs_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr4750RabEstablish", 
+        "name": "ps_att_hsdsch_dch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr5900RabEstablish", 
+        "name": "ps_rel_rl_fail_hs_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr7950RabEstablish", 
+        "name": "ps_rel_rl_fail_d_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmrNbMmRabEstablish", 
+        "name": "ps_rel_rl_fail_d_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmrWbRabEstablish", 
+        "name": "ps_rel_oth_fail_hs_e_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestCs12Establish", 
+        "name": "ps_rel_oth_fail_hs_e_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumDchDlRlcUserPacketThp", 
+        "name": "ps_rel_oth_fail_hs_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumHsDlRlcUserPacketThp", 
+        "name": "ps_rel_oth_fail_hs_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumUlRssi", 
+        "name": "ps_rel_oth_fail_d_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqCs", 
+        "name": "ps_rel_oth_fail_d_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqCsSucc", 
+        "name": "ps_att_dch_dch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqPs", 
+        "name": "ps_att_dch_dch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqPsSucc", 
+        "name": "sum_dur_hsdpa_user_conn", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "sum_dur_hsupa_user_conn", 
         "nullable": true
     }
 ]

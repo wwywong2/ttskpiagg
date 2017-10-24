@@ -1,0 +1,644 @@
+[
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "MGR_RUN_ID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Region", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Market", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "OSS", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "timestamp", 
+        "name": "PERIOD_START_TIME", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "PERIOD_DURATION", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "BASEID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "LOCALMOID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "CELL_ID_1", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "CELL_ID_2", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_2", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_3", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_4", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "received_hs_macd_bits", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "discarded_hs_macd_bits", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_5", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_6", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_7", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsupa_ave_macd_thr", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_4_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_5_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_8", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_6_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_3_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_4_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_5_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_6_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_2_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_3_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_4_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_5_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_6_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_9", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_1_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_2_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_3_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_4_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_5_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_6_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_10", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_11", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_12", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_13", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_14", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_15", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_16", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_17", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_18", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_19", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_20", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_21", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_22", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_23", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_24", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "denom_cpc_users", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "active_dc_hsdpa_users_2c_sum", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "active_dc_hsdpa_users_1c_sum", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_25", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_26", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_27", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_28", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_29", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_30", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_7_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_8_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_7_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_8_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_7_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_4_0_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_4_1_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_4_2_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_4_3_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_4_4_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_4_5_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hs_scch_pwr_dist_class_0", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hs_scch_pwr_dist_class_1", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hs_scch_pwr_dist_class_2", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hs_scch_pwr_dist_class_3", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hs_scch_pwr_dist_class_4", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hs_scch_pwr_dist_class_5", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_1_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_2_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_0_3_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_0_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_0", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_1_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_1_2_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_0_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_2_1_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_users_3_0_in_cells", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "hsdpa_buff_with_data_per_tti", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "cqi_dist_cl_1", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_00_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_01_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_02_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_03_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_04_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_05_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_06_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_07_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_08_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_09_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_10_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_11_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_12_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_retr_unknown_counter", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "mace_pdu_harq_fail_counter", 
+        "nullable": true
+    }
+]

@@ -288,9 +288,12 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None, overwri
    # read csv file(s) into dataframe
    filecount = 0 # init
 
-   # get archive folder - assume it is one level above input file, if not exists, create
+   # get archive folder - assume it is two level above input file, if not exists, create
+   # e.g. ...outputDir/staging/ttskpiagg_ERICSSON_UMTS_date_time_TMO/input.csv
+   #      ...outputDir/archive/
    inputCsvTempDir, inputCsvFile = os.path.split(inputCsv)
-   baseDir, dirTemp = os.path.split(inputCsvTempDir)
+   baseDir, dirTemp = os.path.split(inputCsvTempDir) # one level out
+   baseDir, dirTemp = os.path.split(baseDir)         # one more level out
    archiveDir = os.path.join(baseDir, 'archive')
    if not os.path.isdir(archiveDir): # create if not exist
       try:
@@ -360,9 +363,12 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
    filecount = 0 # init
    firsttime = True
 
-   # get archive folder - assume it is one level above input file, if not exists, create
+   # get archive folder - assume it is two level above input file, if not exists, create
+   # e.g. ...outputDir/staging/ttskpiagg_ERICSSON_UMTS_date_time_TMO/input.csv
+   #      ...outputDir/archive/
    inputCsvTempDir, inputCsvFile = os.path.split(inputCsv)
-   baseDir, dirTemp = os.path.split(inputCsvTempDir)
+   baseDir, dirTemp = os.path.split(inputCsvTempDir) # one level out
+   baseDir, dirTemp = os.path.split(baseDir)         # one more level out
    archiveDir = os.path.join(baseDir, 'archive')
    if not os.path.isdir(archiveDir): # create if not exist
       try:

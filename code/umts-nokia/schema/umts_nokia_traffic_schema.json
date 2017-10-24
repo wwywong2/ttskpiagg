@@ -2,25 +2,7 @@
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "MGR_RUNID", 
-        "nullable": true
-    }, 
-    {
-        "metadata": {}, 
-        "type": "timestamp", 
-        "name": "HL_DATE", 
-        "nullable": true
-    }, 
-    {
-        "metadata": {}, 
-        "type": "string", 
-        "name": "HL_MARKET", 
-        "nullable": true
-    }, 
-    {
-        "metadata": {}, 
-        "type": "double", 
-        "name": "Cntr", 
+        "name": "MGR_RUN_ID", 
         "nullable": true
     }, 
     {
@@ -38,7 +20,7 @@
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "SubNetwork_2", 
+        "name": "OSS", 
         "nullable": true
     }, 
     {
@@ -51,305 +33,306 @@
         "metadata": {}, 
         "type": "double", 
         "name": "PERIOD_DURATION", 
-        "nullable": true,
-        "agg": "SUM"
+        "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "MeContext", 
-        "nullable": true,
-        "agg": "MIN"
+        "name": "BASEID", 
+        "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "string", 
-        "name": "UtranCell", 
-        "nullable": true,
-        "agg": "UtranCell"
+        "name": "LOCALMOID", 
+        "nullable": true
     }, 
     {
         "metadata": {}, 
-        "type": "double", 
-        "name": "pmAttNonBlindInterFreqHoCsSpeech12", 
-        "nullable": true,
-        "agg": "SUM"
+        "type": "string", 
+        "name": "CELL_ID_1", 
+        "nullable": true
     }, 
     {
         "metadata": {}, 
-        "type": "double", 
-        "name": "pmCellDowntimeAuto", 
-        "nullable": true,
-        "agg": "SUM"
-    }, 
-    {
-        "metadata": {}, 
-        "type": "double", 
-        "name": "pmCellDowntimeMan", 
+        "type": "string", 
+        "name": "CELL_ID_2", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmChSwitchAttemptUraFach", 
+        "name": "allo_hs_dsch_flow_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmChSwitchSuccUraFach", 
+        "name": "allo_hs_dsch_flow_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs128", 
+        "name": "rej_hs_dsch_ret_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs16", 
+        "name": "rej_hs_dsch_ret_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs384", 
+        "name": "rel_allo_norm_hs_dsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs64", 
+        "name": "rel_allo_oth_fail_hsdsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePs8", 
+        "name": "rel_allo_norm_hs_dsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsCommon", 
+        "name": "rel_allo_oth_fail_hsdsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsIntHs", 
+        "name": "setup_fail_rnc_hs_dsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsStr128", 
+        "name": "setup_fail_iub_mac_d_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsStr16", 
+        "name": "setup_fail_ue_hs_dsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmDlTrafficVolumePsStr64", 
+        "name": "setup_fail_bts_hs_dsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmFailNonBlindInterFreqHoFailRevertCsSpeech12", 
+        "name": "setup_fail_64_iub_hsdsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoDirRetryAtt", 
+        "name": "setup_fail_128_iub_hsdsch_in", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoLoadSharingRrcConnCs", 
+        "name": "setup_fail_384_iub_hsdsch_in", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoLoadSharingRrcConnPs", 
+        "name": "setup_fail_rnc_hs_dsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoNormalNasSignReleaseCs", 
+        "name": "setup_fail_iub_mac_d_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoNormalRabReleaseSpeech", 
+        "name": "setup_fail_ue_hs_dsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishAttemptSpeech", 
+        "name": "setup_fail_bts_hs_dsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishSuccessSpeech", 
+        "name": "setup_fail_64_iub_hsdsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishAttemptPacketInteractive", 
+        "name": "setup_fail_128_iub_hsdsch_bg", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoRabEstablishSuccessPacketInteractive", 
+        "name": "setup_fail_384_iub_hsdsch_bg", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoSysRelSpeechNeighbr", 
+        "name": "dch_sel_max_hsdpa_users_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoSystemNasSignReleaseCs", 
+        "name": "dch_sel_max_hsdpa_users_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoSystemRabReleaseSpeech", 
+        "name": "rel_allo_rl_fail_hs_dsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmNoTimesCellFailAddToActSet", 
+        "name": "rel_allo_rl_fail_hs_dsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSamplesDchDlRlcUserPacketThp", 
+        "name": "setup_fail_16_iub_hsdsch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSamplesHsDlRlcUserPacketThp", 
+        "name": "setup_fail_16_iub_hsdsch_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSamplesUlRssi", 
+        "name": "ul_dch_sel_max_hsupa_usr_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSuccNonBlindInterFreqHoCsSpeech12", 
+        "name": "ul_dch_sel_max_hsupa_usr_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr12200RabEstablish", 
+        "name": "ul_dch_sel_bts_hw_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr4750RabEstablish", 
+        "name": "ul_dch_sel_bts_hw_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr5900RabEstablish", 
+        "name": "edch_allo_canc_na_as_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmr7950RabEstablish", 
+        "name": "edch_allo_canc_na_as_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmrNbMmRabEstablish", 
+        "name": "setup_fail_edch_ue_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestAmrWbRabEstablish", 
+        "name": "setup_fail_edch_ue_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumBestCs12Establish", 
+        "name": "setup_fail_edch_bts_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumDchDlRlcUserPacketThp", 
+        "name": "setup_fail_edch_bts_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumHsDlRlcUserPacketThp", 
+        "name": "setup_fail_edch_trans_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmSumUlRssi", 
+        "name": "setup_fail_edch_trans_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqCs", 
+        "name": "setup_fail_edch_other_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqCsSucc", 
+        "name": "setup_fail_edch_other_bgr", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqPs", 
+        "name": "allo_success_edch_int", 
         "nullable": true
     }, 
     {
         "metadata": {}, 
         "type": "double", 
-        "name": "pmTotNoRrcConnectReqPsSucc", 
+        "name": "allo_success_edch_bgr", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "setup_rej_edch_ac_int", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "setup_rej_edch_ac_bgr", 
         "nullable": true
     }
 ]
