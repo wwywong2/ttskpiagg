@@ -52,7 +52,7 @@ exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 #              "tech" : "lte", 
 #              "vendor" : "eric",
 #              "oss" : "",
-#              "zkStr" : "zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos"
+#              "zkStr" : "zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos",
 #              "master" : "mesos_master_01", 
 #              "masterPort" : 5050,
 #              "dispatcherPort" : 7077,
@@ -69,7 +69,9 @@ exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 #              "loadFactor": 3,
 #              "exportHr": "3",
 #              "exportDaily": "N",
-#              "exportWithinDay": "3" - skip export if parquet exceed n days; -1 = skip this check
+#              "exportWithinDay": "3", - skip export if parquet exceed n days; -1 = skip this check
+#              "uiStartPort" : "", - empty = default start port range for random func
+#              "uiEndPort" : "" - empty = default end port range for random func
 #             }'
 # argv[6] - (optional) "cluster" or "client" mode
 
@@ -596,7 +598,17 @@ def worker(seqfile):
 
 	global prev_jobname
 	seqfile_dir, seqfile_file = os.path.split(seqfile)
-	jobname = 'stg3_' + seqfile_file + "_%d" % exportMode
+	if optionJSON[u'oss'] == "":
+		job_oss = ''
+	else:
+		job_oss = '_' + optionJSON[u'oss']
+	if exportMode == 2: # pq only
+		jobname_expMode = 'a'
+	elif exportMode == 3: # csv only
+		jobname_expMode = 'b'
+	else: # combine
+		jobname_expMode = 'c'		
+	jobname = "stg3%s_%s%s" % (jobname_expMode, seqfile_file, job_oss)
 	jobname = jobname.replace(' ', '-') # for cluster mode, job name should not contain space - spark bug
 
 	util.logMessage("Task %s start..." % jobname)

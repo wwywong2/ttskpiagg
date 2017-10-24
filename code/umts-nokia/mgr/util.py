@@ -589,6 +589,50 @@ def getInfoFromPQ(parquetLocation):
                      finalPqList[dateStr][marketStr][hrStr] = hr
 
    return finalPqList
+
+# get parquet info from folder structure
+def getInfoFromPQNokia(parquetLocation):
+
+   finalPqList = dict()
+
+   #pqList = glob.glob(parquetLocation+"/*_date=*")
+   pqList = glob.glob(parquetLocation+"/*_ft=*")
+   if len(pqList) <= 0:  # no file type folder
+      return None
+   else:
+      for filetype in pqList:
+
+         filetypeStr = filetype.split("_ft=")[1]
+         finalPqList[filetypeStr] = dict()
+
+         pqDateList = glob.glob(filetype+"/*_date=*")
+         if len(pqDateList) <= 0:  # no date folder
+            pass
+         else:   
+            for date in pqDateList:
+
+               dateStr = date.split("_date=")[1]
+               finalPqList[filetypeStr][dateStr] = dict()
+
+               pqMarketList = glob.glob(date+"/*_market=*")
+               if len(pqMarketList) <= 0:  # no market folder
+                  pass
+               else:
+                  for market in pqMarketList:
+
+                     marketStr = market.split("_market=")[1]
+                     finalPqList[filetypeStr][dateStr][marketStr] = dict()
+
+                     pqHrList = glob.glob(market+"/*_hr=*")
+                     if len(pqHrList) <= 0:  # no hr folder
+                        pass
+                     else:
+                        for hr in pqHrList:
+
+                           hrStr = hr.split("_hr=")[1]
+                           finalPqList[filetypeStr][dateStr][marketStr][hrStr] = hr
+
+   return finalPqList
        
 def getAvailablePortRand(startport=4040, endport=4055):
 

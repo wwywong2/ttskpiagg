@@ -52,7 +52,7 @@ exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 #              "tech" : "lte", 
 #              "vendor" : "eric",
 #              "oss" : "",
-#              "zkStr" : "zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos"
+#              "zkStr" : "zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos",
 #              "master" : "mesos_master_01", 
 #              "masterPort" : 5050,
 #              "dispatcherPort" : 7077,
@@ -63,7 +63,10 @@ exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 #              "exec_core_per_job" : 4,
 #              "drvr_mem" : "512m",
 #              "exec_mem" : "2g",
-#              "logfile" : "" - empty = no log file
+#              "logfile" : "", - empty = no log file
+#              "uiStartPort" : "", - empty = default start port range for random func
+#              "uiEndPort" : "", - empty = default end port range for random func
+#              "exportType" : "" - empty = export all filetype
 #             }'
 ##           "":null --> None in python (no coalesce)
 ##           "":false/true --> False/True in python
@@ -75,10 +78,8 @@ if len(sys.argv) < 6:
    sys.exit(2)
 
 # argv[5] - option json - get first to get all options
-optionJSONStr = ""
 optionJSON = ""
 if len(sys.argv) > 5:
-   optionJSONStr = sys.argv[5]
    optionJSON = sys.argv[5]
 if optionJSON == "":
    optionJSON = '{"master":"", "masterPort":5050}'
@@ -148,6 +149,8 @@ if optionJSON[u'uiStartPort'] == '' or optionJSON[u'uiEndPort'] == '':
    elif optionJSON[u'tech'].lower() == 'umts' and optionJSON[u'vendor'].lower() == 'nokia': # 2500 choices
       optionJSON[u'uiStartPort'] = 47500
       optionJSON[u'uiEndPort'] = 49999
+if 'exportType' not in optionJSON:
+   optionJSON[u'exportType'] = ""
 
 # init logger
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
@@ -575,7 +578,17 @@ def worker(seqfile):
 
 	global prev_jobname
 	seqfile_dir, seqfile_file = os.path.split(seqfile)
-	jobname = 'stg3_' + seqfile_file + "_%d" % exportMode
+	if optionJSON[u'oss'] == "":
+		job_oss = ''
+	else:
+		job_oss = '_' + optionJSON[u'oss']
+	if exportMode == 2: # pq only
+		jobname_expMode = 'a'
+	elif exportMode == 3: # csv only
+		jobname_expMode = 'b'
+	else: # combine
+		jobname_expMode = 'c'		
+	jobname = "stg3%s_%s%s" % (jobname_expMode, seqfile_file, job_oss)
 	jobname = jobname.replace(' ', '-') # for cluster mode, job name should not contain space - spark bug
 
 	util.logMessage("Task %s start..." % jobname)
@@ -634,7 +647,7 @@ TMO \
 		output_parq,
 		output_dir,
 		input_celllookup_parq,
-		optionJSONStr)
+		json.dumps(optionJSON))
 	elif exportMode == 2: # mode 2 - create parquet only
 		exec_str_app = "%s \
 2 \
@@ -652,7 +665,7 @@ TMO \
 		seqfile, 
 		input_celllookup_parq,
 		output_parq,
-		optionJSONStr)
+		json.dumps(optionJSON))
 	else: # mode 1 - create parquet and export csv - not support anymore, should not run to here
 		exec_str_app = "%s \
 1 \
@@ -672,7 +685,7 @@ TMO \
 		input_celllookup_parq,
 		output_parq,
 		output_dir,
-		optionJSONStr)
+		json.dumps(optionJSON))
 	if proc_mode != 'cluster': # client - support multi master (zookeeper)
 		exec_str_app += " &" 
 	else: # cluster - currently not support multi master (zookeeper)
@@ -737,22 +750,36 @@ def main(input_dir, optionJSON):
 
    # export only mode
    if exportMode == 3:
-      # submit one process to work on the whole folder (of multiple txt file)
-      try:
-         # get status
-         statusJSON = getStatusJSON_mesos()
-         bStartNewJob, delay_sec = canStartNewJob(statusJSON)
-         while (bStartNewJob == False):
-            time.sleep(delay_sec)
-            bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
+      util.getInfoFromPQNokia(output_parq)
 
-         # process file
-         worker(staging_dir_sub)
+      # from parquet dir get main info: filetypelist->datelist->marketlist->hrlist e.g. {"lte_cell_avail": {"2016-11-21": {"NY": {"00": "path"}}}}
+      infoPq = util.getInfoFromPQNokia(output_parq)
+      if infoPq is None or len(infoPq.items()) <= 0: # safeguard
+         util.logMessage("Error! No data found from parquet file: %s" % output_parq)
+         return 0
 
-      except Exception as e:
-         util.logMessage("Error: failed to export file %s\n%s" % (staging_dir_sub, e))
-      except:
-         util.logMessage("Unexpected error")
+      for filetype,filetypeItem in sorted(infoPq.items()): # on each file type, spawn new task
+
+         # submit one process to work on the whole folder (of multiple txt file)
+         try:
+            # get status
+            statusJSON = getStatusJSON_mesos()
+            bStartNewJob, delay_sec = canStartNewJob(statusJSON)
+            while (bStartNewJob == False):
+               time.sleep(delay_sec)
+               bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
+
+            # process file
+            optionJSON[u'exportType'] = filetype # set new filetype
+            worker(staging_dir_sub)
+
+            # wait some sec before next task
+            time.sleep(new_job_delay_sec)
+
+         except Exception as e:
+            util.logMessage("Error: failed to export file %s\n%s" % (staging_dir_sub, e))
+         except:
+            util.logMessage("Unexpected error")
 
       return 0
 
