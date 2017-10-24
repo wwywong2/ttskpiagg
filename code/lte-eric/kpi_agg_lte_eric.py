@@ -6,6 +6,7 @@ import os
 import glob # pathname
 import shutil # move file
 import time
+import datetime
 import uuid
 import json
 import socket
@@ -36,6 +37,9 @@ curr_py_path = os.path.realpath(__file__) # current running file - abs path
 curr_py_dir, curr_py_filename = os.path.split(curr_py_path)  # current file and folder - abs path
 
 
+# lookup vars
+dfCellLookup = None # this stores the cell lookup parquet dataframe after
+dictMarketLookup = None # this stores the market - suffix lookup
 
 
 # argv[1] - process name
@@ -247,16 +251,51 @@ def csvToDF(spark, csvFile, schema=None):
 
 
 
+def loadCellLookup(lookupPQ):
+   global dfCellLookup
+   global dictMarketLookup
+
+   # read lookup parquet
+   util.logMessage("reading lookup parquet: %s" % lookupPQ)
+
+   dfLookup = spark.read.parquet(lookupPQ)
+   dfCellLookup = dfLookup # save to global
+   dfLookup.createOrReplaceTempView('lookup')
+
+   sqlDF = spark.sql("SELECT DISTINCT MARKET,MARKET_SUFFIX FROM lookup")
+   arrMarketLookup = sqlDF.collect()
+
+   dictMarketLookup = dict()
+   for row in arrMarketLookup:
+      dictMarketLookup[row['MARKET']] = row['MARKET_SUFFIX']
+
+   util.logMessage("finish reading lookup parquet: %s" % lookupPQ)
+
+
+
+
+
+
 
 # read each csv into df then export to parquet
-def csvToParquet1(spark, inputCsv, schema, lookupPQ, outputDir, numPartition=None, overwrite=False):
+def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None, overwrite=False):
 
    # read csv file(s) into dataframe
    filecount = 0 # init
 
+   # get archive folder - assume it is under the same level as input file, if not exists, create
+   archiveDir1, archiveDir2 = os.path.split(inputCsv)
+   archiveDir = archiveDir1 + '/archive'
+   if not os.path.isdir(archiveDir): # create if not exist
+      try:
+         util.logMessage("archive folder not exist. Create folder \"%s\"" % archiveDir)
+         os.mkdir(archiveDir)
+      except:
+         util.logMessage("Failed to create folder \"%s\"!" % archiveDir)
+         archiveDir = '' # reset to empty
+
    # check file exist
    inputCsvList = glob.glob(inputCsv)
-   #if len(glob.glob(inputCsv)) <= 0:  # no file
    if len(inputCsvList) <= 0:  # no file
       util.logMessage("no file to process: %s" % inputCsv)
       #util.logMessage("Process terminated.")
@@ -279,7 +318,7 @@ def csvToParquet1(spark, inputCsv, schema, lookupPQ, outputDir, numPartition=Non
             writemode = 'overwrite'
          else:
             writemode = 'append'
-         addPkAndSaveParquet(df, lookupPQ, writemode, outputDir, numPartition)
+         addPkAndSaveParquet(df, writemode, outputDir, numPartition)
 
    return 0
 
@@ -287,15 +326,26 @@ def csvToParquet1(spark, inputCsv, schema, lookupPQ, outputDir, numPartition=Non
 
 
 # read group of csvs and union into df then export to parquet
-def csvToParquet2(spark, inputCsv, schema, lookupPQ, outputDir, loadFactor=10, numPartition=None, overwrite=False):
+def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartition=None, overwrite=False):
 
    # read csv file(s) into dataframe
    filecount = 0 # init
    firsttime = True
 
+   # get archive folder - assume it is under the same level as input file, if not exists, create
+   archiveDir1, archiveDir2 = os.path.split(inputCsv)
+   archiveDir = archiveDir1 + '/archive'
+   if not os.path.isdir(archiveDir): # create if not exist
+      try:
+         util.logMessage("archive folder not exist. Create folder \"%s\"" % archiveDir)
+         os.mkdir(archiveDir)
+      except:
+         util.logMessage("Failed to create folder \"%s\"!" % archiveDir)
+         archiveDir = '' # reset to empty
+
+ 
    # check file exist
    inputCsvList = glob.glob(inputCsv)
-   #if len(glob.glob(inputCsv)) <= 0:  # no file
    if len(inputCsvList) <= 0:  # no file
       util.logMessage("no file to process: %s" % inputCsv)
       #util.logMessage("Process terminated.")
@@ -321,7 +371,7 @@ def csvToParquet2(spark, inputCsv, schema, lookupPQ, outputDir, loadFactor=10, n
                else:
                   writemode = 'append'
                if maindf is not None:
-                  addPkAndSaveParquet(maindf, lookupPQ, writemode, outputDir, numPartition)
+                  addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
                else:
                   util.logMessage("dataframe empty, no need to save to parquet")
 
@@ -339,16 +389,24 @@ def csvToParquet2(spark, inputCsv, schema, lookupPQ, outputDir, loadFactor=10, n
    else:
       writemode = 'append'
    if maindf is not None:
-      addPkAndSaveParquet(maindf, lookupPQ, writemode, outputDir, numPartition)
+      addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
    else:
       util.logMessage("dataframe empty, no need to save to parquet")
+
+
+   # move input file to archive - WES_TEST: need to zip into package?
+   if (archiveDir != ''): # if cannot create archive folder, don't do anything
+      for curr_file in sorted(inputCsvList):
+         shutil.move(curr_file, archiveDir + '/' + curr_file.split('/')[-1])
+
 
 
    return 0
 
 
 
-def addPkAndSaveParquet(origDF, lookupPQ, writemode, outputDir, numPartition=None):
+# assume lookup parquet already loaded into a temp view lookup
+def addPkAndSaveParquet(origDF, writemode, outputDir, numPartition=None):
 
    util.logMessage("adding partition columns...")
 
@@ -366,11 +424,8 @@ def addPkAndSaveParquet(origDF, lookupPQ, writemode, outputDir, numPartition=Non
    origDF.createOrReplaceTempView('kpi')
 
    # recover from lookup parquet
-   # read parquet
-   util.logMessage("reading lookup parquet: %s" % lookupPQ)
-   dfLookup = spark.read.parquet(lookupPQ)
-   dfLookup.createOrReplaceTempView('lookup')
    util.logMessage("start market-cluster-area recovery process...")
+
 
    # example join sql
    #sqlDF = spark.sql("SELECT l.TECH,l.VENDOR,l.MARKET,l.CLUSTER,l.AREA,k.EUtranCellFDD from kpi k left join lookup l on k.EUtranCellFDD = l.CELL")
@@ -407,7 +462,25 @@ def addPkAndSaveParquet(origDF, lookupPQ, writemode, outputDir, numPartition=Non
 
 
 
-def aggKPI1(spark, pq, jsonFile, csv):
+def aggKPI1(spark, pq, jsonFile, workdir):
+
+   # get proc time
+   procDatetimeArr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+   procDatetimeArr[1] = procDatetimeArr[1][:-3]
+
+   # get folder name e.g. /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123
+   workdir = workdir.rstrip('/')
+   workdir1, workdir2 = os.path.split(workdir)
+   csv1arr = workdir2.split('_')
+   if len(csv1arr) < 4: 
+      util.logMessage("Error getting work dir: %s" % workdir)
+      return None
+   else:
+      # e.g. ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO
+      csv1 = "ttskpiagg_%s_%s_%s_%s_%s" % (
+	csv1arr[1], csv1arr[2], procDatetimeArr[0], procDatetimeArr[1], csv1arr[3])
+
+
 
    try:
       with open(jsonFile) as json_data:
@@ -451,19 +524,19 @@ HL_DATE AS HL_Date, \
 EUtranCellFDD AS HL_Sector, \
 '' AS HL_SectorLayer, \
 MeContext AS HL_Site, \
-'unassigned' AS HL_Cluster, \
-'unassigned' AS HL_Area, \
-'unassigned' AS HL_Market \
+HL_Cluster, \
+HL_Area, \
+HL_Market \
 FROM kpi \
 [##where##] \
 /*GROUP BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_SectorLayer,HL_Cluster,HL_Area*/ \
-GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
+GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_Cluster,HL_Area \
 /*ORDER BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD*/ " % (sqlStr)
 
 
    # from parquet dir get main info: datelist->marketlist->hrlist e.g. {"2016-11-21": {"NY": {"00": "path"}}}
    infoPq = getInfoFromPQ(pq)
-   if len(infoPq.items()) <= 0: # safeguard
+   if infoPq is None or len(infoPq.items()) <= 0: # safeguard
       util.logMessage("Error! No data found from parquet file: %s" % pq)
       return None
 
@@ -483,19 +556,33 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
       #for hour,hourItem in marketItem.items(): # key2: hour; value: pathname
       #   util.logMessage("creating csv for hr: %s" % hour)
 
+      # get uuid for MGR_RUN_ID
+      uuidstr = str(uuid.uuid4())
+
       util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
+
+      # get market schema suffix
+      # old way - load df each time; new way - read once into rows into dict so reuse is fast
+      #suffix = dfCellLookup.filter(dfCellLookup.MARKET == "%s" % market).first().MARKET_SUFFIX
+      if market in dictMarketLookup:
+         suffix = dictMarketLookup[market]
+      else:
+         suffix = 'null' # safeguard - no schema with _null
 
       numMaxHr = len(marketItem.items()) # get num of hours to run csv
       if numMaxHr > 24: # safeguard
          numMaxHr = 24
 
       # create hourly csv
+      uuidstr_last = '' # init
       for i in xrange(0,numMaxHr):
 
-         # get uuid for MGR_RUN_ID
-         uuidstr = str(uuid.uuid4())
+         # append hr to run id
+         uuidstr_final = "%02d-%s" % (i,uuidstr)
+         uuidstr_last = uuidstr_final
+
          # replace with real uuid
-         sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr)
+         sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr_final)
 
          # replace where clause
          whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
@@ -506,16 +593,19 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
 
          # save df to csv if not empty
          if sqlDF.count() > 0:
-            saveCsv(sqlDF, csv + "_%s_%02d.csv" % (market,i))
+            # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+            #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
+            saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s_%02d.csv" % (
+		date, suffix, market.replace(' ', '-'), i))
 
 
       # create daily csv
       if numMaxHr > 0: # if there is any hr data, create daily data
 
-         # get uuid for MGR_RUN_ID
-         uuidstr = str(uuid.uuid4())
+         # append hr to run id (24 mean daily)
+         uuidstr_final = "24-%s" % (uuidstr)
          # replace with real uuid
-         sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr)
+         sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr_final)
 
          # replace where clause
          whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
@@ -528,8 +618,37 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
          #print sqlStrFinal
          sqlDF = spark.sql(sqlStrFinal)
 
-         # save df to csv if not empty
-         saveCsv(sqlDF, csv + "_%s.csv" % market)
+         # save df to csv
+         # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+         #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND.csv
+         saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s.csv" % (
+		date, suffix, market.replace(' ', '-')))
+
+
+      # zip to market file
+      # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+      #       workdir1 - /mnt/nfs/test/
+      #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
+      outCSVTgz = csv1 + "_%s_%s_%s_%s.tgz" % (
+	date, suffix, market.replace(' ', '-'), uuidstr_last)
+      try:
+         util.logMessage('zipping files: cd %s && tar -cvzf %s *.csv' % (workdir, outCSVTgz))
+         os.system("cd %s && tar -cvzf %s *.csv" % (workdir, outCSVTgz))
+         os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
+         shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
+         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
+      except Exception as e:
+         util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         return None
+      except:
+         util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         return None
+      
+
+   # end of for market,marketItem in dateItem.items()
 
 
    util.logMessage("finish aggregation process.")
@@ -537,10 +656,28 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
 
 
 
-def aggKPI2(spark, pq, jsonFile, csv):
+def aggKPI2(spark, pq, jsonFile, workdir):
 
    sqlStrFinal = ''
    sqlStr = ''
+
+   # get proc time
+   procDatetimeArr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+   procDatetimeArr[1] = procDatetimeArr[1][:-3]
+
+   # get folder name e.g. /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123
+   workdir = workdir.rstrip('/')
+   workdir1, workdir2 = os.path.split(workdir)
+   csv1arr = workdir2.split('_')
+   if len(csv1arr) < 4: 
+      util.logMessage("Error getting work dir: %s" % workdir)
+      return None
+   else:
+      # e.g. ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO
+      csv1 = "ttskpiagg_%s_%s_%s_%s_%s" % (
+	csv1arr[1], csv1arr[2], procDatetimeArr[0], procDatetimeArr[1], csv1arr[3])
+
+
 
    try:
       with open(jsonFile) as json_data:
@@ -565,7 +702,7 @@ def aggKPI2(spark, pq, jsonFile, csv):
 
    # from parquet dir get main info: datelist->marketlist->hrlist e.g. {"2016-11-21": {"NY": {"00": "path"}}}
    infoPq = getInfoFromPQ(pq)
-   if len(infoPq.items()) <= 0: # safeguard
+   if infoPq is None or len(infoPq.items()) <= 0: # safeguard
       util.logMessage("Error! No data found from parquet file: %s" % pq)
       return None
 
@@ -579,25 +716,40 @@ def aggKPI2(spark, pq, jsonFile, csv):
    # get latest date for now
    date,dateItem = sorted(infoPq.items(), reverse=True)[0] # only take the first time - lastest date
 
+
    # create csv by market
    for market,marketItem in dateItem.items():
 
       #for hour,hourItem in marketItem.items():
       #   util.logMessage("creating csv for hr: %s" % hour)
 
+      # get uuid for MGR_RUN_ID
+      uuidstr = str(uuid.uuid4())
+
       util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
+
+      # get market schema suffix
+      # old way - load df each time; new way - read once into rows into dict so reuse is fast
+      #suffix = dfCellLookup.filter(dfCellLookup.MARKET == "%s" % market).first().MARKET_SUFFIX
+      if market in dictMarketLookup:
+         suffix = dictMarketLookup[market]
+      else:
+         suffix = 'null' # safeguard - no schema with _null
 
       numMaxHr = len(marketItem.items()) # get num of hours to run csv
       if numMaxHr > 24: # safeguard
          numMaxHr = 24
 
       # create hourly csv
+      uuidstr_last = '' # init
       for i in xrange(0,numMaxHr):
 
-         # get uuid for MGR_RUN_ID
-         uuidstr = str(uuid.uuid4())
+         # append hr to run id
+         uuidstr_final = "%02d-%s" % (i,uuidstr)
+         uuidstr_last = uuidstr_final
+
          # replace with real uuid
-         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
+         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
 
          # replace where clause
          whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
@@ -608,16 +760,19 @@ def aggKPI2(spark, pq, jsonFile, csv):
 
          # save df to csv if not empty
          if sqlDF.count() > 0:
-            saveCsv(sqlDF, csv + "_%s_%02d.csv" % (market,i))
+            # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+            #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
+            saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s_%02d.csv" % (
+		date, suffix, market.replace(' ', '-'), i))
 
 
       # create daily csv
       if numMaxHr > 0: # if there is any hr data, create daily data
 
-         # get uuid for MGR_RUN_ID
-         uuidstr = str(uuid.uuid4())
+         # append hr to run id (24 mean daily)
+         uuidstr_final = "24-%s" % (uuidstr)
          # replace with real uuid
-         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
+         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
 
          # replace where clause
          whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
@@ -630,8 +785,37 @@ def aggKPI2(spark, pq, jsonFile, csv):
          #print sqlStrFinal
          sqlDF = spark.sql(sqlStrFinal)
 
-         # save df to csv if not empty
-         saveCsv(sqlDF, csv + "_%s.csv" % market)
+         # save df to csv
+         # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+         #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND.csv
+         saveCsv(sqlDF, workdir + '/' + csv1 + "_%s_%s_%s.csv" % (
+		date, suffix, market.replace(' ', '-')))
+
+
+      # zip to market file
+      # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+      #       workdir1 - /mnt/nfs/test/
+      #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
+      outCSVTgz = csv1 + "_%s_%s_%s_%s.tgz" % (
+	date, suffix, market.replace(' ', '-'), uuidstr_last)
+      try:
+         util.logMessage('zipping files: cd %s && tar -cvzf %s *.csv' % (workdir, outCSVTgz))
+         os.system("cd %s && tar -cvzf %s *.csv" % (workdir, outCSVTgz))
+         os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
+         shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
+         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
+      except Exception as e:
+         util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         return None
+      except:
+         util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         return None
+      
+
+   # end of for market,marketItem in dateItem.items()
 
 
    util.logMessage("finish aggregation process.")
@@ -705,9 +889,9 @@ def saveCsv(sqlDF, csv):
       return None
    # supposed only have 1 because of coalesce(1), but in case of more than one, it will just keep overwriting
    for curr_file in sorted(outputCsvList):
-      os.system("rm -rf "+csv) # remove prev output
+      os.system("rm -rf '%s'" % csv) # remove prev output
       shutil.move(curr_file, csv)
-   os.system("rm -rf "+csvTmp) # remove temp output folder
+   os.system("rm -rf '%s'" % csvTmp) # remove temp output folder
 
 
 
@@ -763,6 +947,15 @@ def main(spark,inCSV,outPQ,outCSV):
       #createCellLookup(spark, inCSV, outPQ) # '/mnt/nfs/test/westest_CellLookup.pqz'
       #return 0
 
+
+      # 1. create lookup tables - result saved to globals
+      loadCellLookup(inCellLookupPQ)
+      if dfCellLookup is None or dictMarketLookup is None or len(dictMarketLookup) <= 0:
+         util.logMessage("failed to load lookup parquet: %s" % inCellLookupPQ)
+         return 0
+
+
+      # 2. load kpi into agg pq
       if inCSV is not "":
 
          # get schema
@@ -779,13 +972,12 @@ def main(spark,inCSV,outPQ,outCSV):
 
 
          # read csv file(s) into dataframe then save into parquet
-         #csvToParquet1(spark, inCSV, schema, inCellLookupPQ, outPQ, numPartition=optionJSON['partitionNum'], overwrite=optionJSON['overwrite']) # old way - read 1 save 1
-         csvToParquet2(spark, inCSV, schema, inCellLookupPQ, outPQ, optionJSON['loadFactor'], numPartition=optionJSON['partitionNum'], overwrite=optionJSON['overwrite']) # new way - read 20 save 1
+         #csvToParquet1(spark, inCSV, schema, outPQ, numPartition=optionJSON['partitionNum'], overwrite=optionJSON['overwrite']) # old way - read 1 save 1
+         csvToParquet2(spark, inCSV, schema, outPQ, optionJSON['loadFactor'], numPartition=optionJSON['partitionNum'], overwrite=optionJSON['overwrite']) # new way - read 20 save 1
          # note: 2 partition - 2G exec mem - 4 cores (2 exec) - 3 union - ok
          # note: 2 partition - 2G exec mem - 4 cores (2 exec) - 5 union - ok?
          # note: 4 partition - 2G exec mem - 8 cores (4 exec) - 10 union - ok
          
-
          # sample code
          #sampleCode(spark)
 
@@ -793,57 +985,39 @@ def main(spark,inCSV,outPQ,outCSV):
 
 
 
-      # aggregation by hour and save to csv
+      # 3. aggregation by hour and save to csv
       if outCSV is not "":
 
          outCSV = outCSV.rstrip('/')
-         outCSVdir1, outCSVdir2 = os.path.split(outCSV)
-         outCSVTmp = outCSVdir1 + '/' + outCSVdir2 + '_' + time.strftime("%Y%m%d%H%M%S")
+         outCSVTmp = outCSV + '_' + datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:-3]
          # create tmp folder
          try:
-            os.system("rm -rf "+outCSVTmp) # remove prev output
+            os.system("rm -rf '%s'" % outCSVTmp) # remove prev output
             os.mkdir(outCSVTmp)
          except Exception as e:
             util.logMessage("failed to create folder '%s'!\n%s" % (outCSVTmp,e))
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            os.system("rm -rf '%s'" % outCSVTmp) # remove temp output folder
             return 0
          except:
             util.logMessage("failed to create folder '%s'!" % outCSVTmp)
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            os.system("rm -rf '%s'" % outCSVTmp) # remove temp output folder
             return 0
 
          # run aggregation
          try:
-            #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from schema file itself
-            aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from sql file
+            #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSVTmp) # grab sql info from schema file itself
+            aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSVTmp) # grab sql info from sql file
+            os.system("rm -rf '%s'" % outCSVTmp) # remove temp output folder
          except Exception as e:
             util.logMessage("failed to aggregate to '%s'!\n%s" % (outCSVTmp,e))
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            os.system("rm -rf '%s'" % outCSVTmp) # remove temp output folder
             return 0
          except:
             util.logMessage("failed to aggregate to '%s'!" % outCSVTmp)
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            os.system("rm -rf '%s'" % outCSVTmp) # remove temp output folder
             return 0
 
-         
-         # zip to file
-         outCSVTgz = outCSVdir2+'.tgz'
-         try:
-            util.logMessage('zipping files: cd %s && tar -cvzf %s *.csv' % (outCSVTmp, outCSVTgz))
-            os.system("cd %s && tar -cvzf %s *.csv" % (outCSVTmp, outCSVTgz))
-            os.system("rm -rf "+outCSVdir1+'/'+outCSVTgz) # remove old output file
-            shutil.move(outCSVTmp+'/'+outCSVTgz, outCSVdir1+'/'+outCSVTgz)
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
-            util.logMessage('zipping files successful: %s' % outCSVdir1+'/'+outCSVTgz)
-         except Exception as e:
-            util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
-            return 0
-         except:
-            util.logMessage("failed to zip file '%s'!" % outCSVTgz)
-            os.system("rm -rf "+outCSVTmp) # remove temp output folder
-            return 0
-
+      # end of if outCSV is not "":
 
 
 
