@@ -35,17 +35,60 @@ socket_retry_num = 10 # num of times to retry when socket fail
 curr_py_path = os.path.realpath(__file__) # current running file - abs path
 curr_py_dir, curr_py_filename = os.path.split(curr_py_path)  # current file and folder - abs path
 
+
+
+
 # argv[1] - process name
 # argv[2] - input file (csv) e.g. "/mnt/nfs/test_results/eric/lte/set_*-*/set_001.txt"; if empty, skip to next stage
 # argv[3] - schema file (json) (empty if not needed) e.g. "lte_eric_schema.json"
-# argv[4] - output parquet dir e.g. "/mnt/nfs/test/westest_lte.pqz"
-# argv[5] - output csv e.g. "/mnt/nfs/test/westest_lte"; if empty, not creating export
-# argv[6] - process mode: 'client' or 'cluster'
+# argv[4] - input cell lookup parquet  e.g. "/mnt/nfs/test/westest_CellLookup.pqz"
+# argv[5] - output parquet dir e.g. "/mnt/nfs/test/westest_lte.pqz"
+# argv[6] - output csv e.g. "/mnt/nfs/test/westest_lte"; if empty, not creating export
+# argv[7] - option json string (optional); default '{"overwrite":false, "partiaionNum":2, "loadFactor":3}'
+#           "partitionNum":null --> None in python (no coalesce)
+#           "overwrite":false/true --> False/True in python
+# argv[8] - process mode: 'client' or 'cluster'
+def printUsage():
+   print '\nUsage:'
+   print '%s procName inFile inSchemaFile inLookupPQ outPQ outCSV optionJSON\n' % (curr_py_filename)
+   print 'e.g.'
+   print '/opt/spark/bin/spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos --driver-memory 512M --executor-memory 2G --total-executor-cores 8 %s "testProc" "/mnt/nfs/test/eric/lte/set_*_100/set_00*.txt" "lte_eric_schema.json" "/mnt/nfs/test/cellLookup.pqz" "/mnt/nfs/test/out.pqz" "/mnt/nfs/test/testLte" \'{"overwrite":false, "partitionNum":2, "loadFactor":3}\' \n' % (curr_py_filename)
+
+   print 'Detail:'
+   print '   procName     - process name (mandatory)'
+   print '   inFile       - input file (csv) e.g. "/mnt/nfs/test/set_*-*/set_00*.txt";'
+   print '                  if empty, only do aggregation on existing parquet & export to csv'
+   print '   inSchemaFile - schema file (json) (empty if not needed) e.g. "lte_eric_schema.json"'
+   print '   inLookupPQ   - input cell lookup parquet (mandatory) e.g. "/mnt/nfs/test/cellLookup.pqz"'
+   print '   outPQ        - output parquet dir (mandatory) e.g. "/mnt/nfs/test/outLte.pqz"'
+   print '   outCSV       - output csv in tgz package (w/o extension);  e.g. "/mnt/nfs/test/lteExport";'
+   print '                  if empty, not creating export, just process kpi into parquet'
+   print '   optionJSON   - option json string (optional)'
+   print '                  default \'{"overwrite":false, "partiaionNum":2, "loadFactor":3}\''
+   print '                  "overwrite":false/true --> False/True in python; true - overwrite outPQ'
+   print '                  "partitionNum":null --> None in python (no coalesce); should match with executor#'
+   print '                  "loadFactor":3 --> # of seq file to join before writing to outPQ'
+   #print '   procMode     - process mode: "client" or "cluster"; default: client'
+   print 
+
+
+
+
+
+if len(sys.argv) < 7:
+   util.logMessage("Error: param incorrect.")
+   printUsage()
+   sys.exit(2)
+
+
 
 APP_NAME = "kpiAggrApp"
 # argv[1] - take app name from param
 if len(sys.argv) > 1:
    APP_NAME = sys.argv[1]
+
+# argv[2] - input file
+inCSV = sys.argv[2]
 
 # argv[3] - schema filename
 schemaFile = ""
@@ -53,15 +96,25 @@ if len(sys.argv) > 3:
    schemaFile = sys.argv[3]
 sqlFile = schemaFile.replace('_schema', '_sql')
 
+# argv[4] - input cell lookup parquet
+inCellLookupPQ = sys.argv[4]
+# quick check
+inCellLookupPQ = inCellLookupPQ.rstrip('/')
+if inCellLookupPQ == '':
+   util.logMessage("lookup parquet location cannot be empty.")
+   printUsage()
+   sys.exit(2)
+elif not os.path.isdir(inCellLookupPQ):  # error out if not exist
+   util.logMessage("lookup parquet \"%s\" does not exist!" % inCellLookupPQ)
+   printUsage()
+   sys.exit(2)
 
-
-# argv[4] - output dir
+# argv[5] - output parquet
 output_dir = ""
-if len(sys.argv) > 4:
-   output_dir = sys.argv[4]
+if len(sys.argv) > 5:
+   output_dir = sys.argv[5]
 output_dir = output_dir.rstrip('/')
 #output_dir = curr_py_dir+'/output_'+time.strftime("%Y%m%d%H%M%S")
-
 if output_dir == "":
    output_dir = "." # default current folder
 elif not os.path.isdir(output_dir): # create if not exist
@@ -71,15 +124,41 @@ elif not os.path.isdir(output_dir): # create if not exist
       util.logMessage("Failed to create folder \"%s\"!" % output_dir)
       util.logMessage("Process terminated.")
       sys.exit(2)
-else:
-   pass
+outPQ = output_dir
+# quick check
+if not os.path.isdir(outPQ):  # error out if not exist
+   util.logMessage("output parquet location \"%s\" does not exist!" % outPQ)
+   printUsage()
+   sys.exit(2)
 
+# argv[6] - output csv
+outCSV = sys.argv[6]
+outCSV = outCSV.rstrip('/')
 
+# argv[7] - option json
+optionJSON = ""
+if len(sys.argv) > 7:
+   optionJSON = sys.argv[7]
+if optionJSON == "":
+   optionJSON = '{"overwrite":false, "partitionNum":2, "loadFactor":3}'
+try:
+   optionJSON = json.loads(optionJSON)
+except Exception as e: # error parsing json
+   optionJSON = '{"overwrite":false, "partitionNum":2, "loadFactor":3}'
+   optionJSON = json.loads(optionJSON) 
+# default val if not exist
+if 'overwrite' not in optionJSON:
+   optionJSON[u'overwrite'] = False
+if 'partitionNum' not in optionJSON:
+   optionJSON[u'partitionNum'] = 2
+if 'loadFactor' not in optionJSON:
+   optionJSON[u'loadFactor'] = 3
+util.logMessage("Process start with option:\n%s" % optionJSON)
 
-# argv[6] - process mode
+# argv[8] - process mode
 proc_mode = ''
-if len(sys.argv) > 6:
-   proc_mode = sys.argv[6]
+if len(sys.argv) > 8:
+   proc_mode = sys.argv[8]
 proc_mode = proc_mode.lower()
 if not proc_mode == 'cluster':
    proc_mode = 'client'
@@ -88,8 +167,9 @@ if not proc_mode == 'cluster':
 
 
 
-##OTHER FUNCTIONS/CLASSES
 
+
+##OTHER FUNCTIONS/CLASSES
 
 def sampleCode(spark):
 
@@ -169,7 +249,7 @@ def csvToDF(spark, csvFile, schema=None):
 
 
 # read each csv into df then export to parquet
-def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None):
+def csvToParquet1(spark, inputCsv, schema, lookupPQ, outputDir, numPartition=None, overwrite=False):
 
    # read csv file(s) into dataframe
    filecount = 0 # init
@@ -179,7 +259,7 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None):
    #if len(glob.glob(inputCsv)) <= 0:  # no file
    if len(inputCsvList) <= 0:  # no file
       util.logMessage("no file to process: %s" % inputCsv)
-      util.logMessage("Process terminated.")
+      #util.logMessage("Process terminated.")
       return 0
 
    for curr_file in sorted(inputCsvList):
@@ -195,11 +275,11 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None):
          util.logMessage("finish reading file: %s" % curr_file)
 
          # write parquet
-         if filecount == 1:
+         if filecount == 1 and overwrite:
             writemode = 'overwrite'
          else:
             writemode = 'append'
-         addPkAndSaveParquet(df, writemode, outputDir, numPartition)
+         addPkAndSaveParquet(df, lookupPQ, writemode, outputDir, numPartition)
 
    return 0
 
@@ -207,7 +287,7 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None):
 
 
 # read group of csvs and union into df then export to parquet
-def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartition=None):
+def csvToParquet2(spark, inputCsv, schema, lookupPQ, outputDir, loadFactor=10, numPartition=None, overwrite=False):
 
    # read csv file(s) into dataframe
    filecount = 0 # init
@@ -218,7 +298,7 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
    #if len(glob.glob(inputCsv)) <= 0:  # no file
    if len(inputCsvList) <= 0:  # no file
       util.logMessage("no file to process: %s" % inputCsv)
-      util.logMessage("Process terminated.")
+      #util.logMessage("Process terminated.")
       return 0
 
    for curr_file in sorted(inputCsvList):
@@ -235,13 +315,13 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
             if filecount is not 0: # not the first time, write/append to file
 
                # write parquet
-               if firsttime:
+               if firsttime and overwrite:
                   writemode = 'overwrite'
                   firsttime = False
                else:
                   writemode = 'append'
                if maindf is not None:
-                  addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
+                  addPkAndSaveParquet(maindf, lookupPQ, writemode, outputDir, numPartition)
                else:
                   util.logMessage("dataframe empty, no need to save to parquet")
 
@@ -253,13 +333,13 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
       # end of for curr_file in sorted(inputCsvList):
 
 
-   if firsttime:
+   if firsttime and overwrite:
       writemode = 'overwrite'
       firsttime = False
    else:
       writemode = 'append'
    if maindf is not None:
-      addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
+      addPkAndSaveParquet(maindf, lookupPQ, writemode, outputDir, numPartition)
    else:
       util.logMessage("dataframe empty, no need to save to parquet")
 
@@ -268,38 +348,34 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
 
 
 
-def addPkAndSaveParquet(df, writemode, outputDir, numPartition=None):
+def addPkAndSaveParquet(origDF, lookupPQ, writemode, outputDir, numPartition=None):
 
    util.logMessage("adding partition columns...")
 
    '''
    # add key col from HL_Area
-   df = df.withColumn("HL_Area", lit('unassigned'))
+   origDF = origDF.withColumn("HL_Area", lit('unassigned'))
    # add key col from HL_Cluster
-   df = df.withColumn("HL_Cluster", lit('unassigned'))
+   origDF = origDF.withColumn("HL_Cluster", lit('unassigned'))
    # add key col from HL_SectorLayer
-   df = df.withColumn("HL_SectorLayer", lit(None).cast(StringType()))
+   origDF = origDF.withColumn("HL_SectorLayer", lit(None).cast(StringType()))
    '''
 
-   # create/replace HL_columns and replace with 'unassigned'   
-   df = df.drop("HL_Market")
-   #df = df.withColumn("HL_Cluster", lit('unassigned'))
-   #df = df.withColumn("HL_Area", lit('unassigned'))
-   #df = df.withColumn("HL_Market", lit('unassigned'))
+   # remove HL_Market column; it will be recovered later
+   origDF = origDF.drop("HL_Market")
+   origDF.createOrReplaceTempView('kpi')
 
    # recover from lookup parquet
    # read parquet
-   util.logMessage("reading lookup parquet: %s" % '/mnt/nfs/test/westest_CellLookup.pqz')
-   dfLookup = spark.read.parquet('/mnt/nfs/test/westest_CellLookup.pqz')
+   util.logMessage("reading lookup parquet: %s" % lookupPQ)
+   dfLookup = spark.read.parquet(lookupPQ)
    dfLookup.createOrReplaceTempView('lookup')
-   df.createOrReplaceTempView('kpi')
    util.logMessage("start market-cluster-area recovery process...")
 
    # example join sql
    #sqlDF = spark.sql("SELECT l.TECH,l.VENDOR,l.MARKET,l.CLUSTER,l.AREA,k.EUtranCellFDD from kpi k left join lookup l on k.EUtranCellFDD = l.CELL")
    # create join dataframe
-   sqlDF = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on k.EUtranCellFDD = l.CELL AND l.TECH = 'LTE'")
-   df = sqlDF
+   df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on k.EUtranCellFDD = l.CELL AND l.TECH = 'LTE'")
 
    # add key col from HL_MARKET - need to add HL_MARKET because that column will be gone if we go into sub dir
    df = df.withColumn("pk_market", df['HL_MARKET'])
@@ -703,8 +779,9 @@ def main(spark,inCSV,outPQ,outCSV):
 
 
          # read csv file(s) into dataframe then save into parquet
-         #csvToParquet1(spark, inCSV, schema, outPQ) # old way - read 1 save 1
-         csvToParquet2(spark, inCSV, schema, outPQ, 10, numPartition=4) # new way - read 20 save 1
+         #csvToParquet1(spark, inCSV, schema, inCellLookupPQ, outPQ, numPartition=optionJSON['partitionNum'], overwrite=optionJSON['overwrite']) # old way - read 1 save 1
+         csvToParquet2(spark, inCSV, schema, inCellLookupPQ, outPQ, optionJSON['loadFactor'], numPartition=optionJSON['partitionNum'], overwrite=optionJSON['overwrite']) # new way - read 20 save 1
+         # note: 2 partition - 2G exec mem - 4 cores (2 exec) - 3 union - ok
          # note: 2 partition - 2G exec mem - 4 cores (2 exec) - 5 union - ok?
          # note: 4 partition - 2G exec mem - 8 cores (4 exec) - 10 union - ok
          
@@ -728,14 +805,26 @@ def main(spark,inCSV,outPQ,outCSV):
             os.mkdir(outCSVTmp)
          except Exception as e:
             util.logMessage("failed to create folder '%s'!\n%s" % (outCSVTmp,e))
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
             return 0
          except:
             util.logMessage("failed to create folder '%s'!" % outCSVTmp)
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
             return 0
 
          # run aggregation
-         #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from schema file itself
-         aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from sql file
+         try:
+            #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from schema file itself
+            aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from sql file
+         except Exception as e:
+            util.logMessage("failed to aggregate to '%s'!\n%s" % (outCSVTmp,e))
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            return 0
+         except:
+            util.logMessage("failed to aggregate to '%s'!" % outCSVTmp)
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            return 0
+
          
          # zip to file
          outCSVTgz = outCSVdir2+'.tgz'
@@ -757,20 +846,12 @@ def main(spark,inCSV,outPQ,outCSV):
 
 
 
-      #time.sleep(120)
-
 
    except Exception as e:
-
-      #util.logMessage('Cleanup location \'%s\'' % outPQ)
-      #os.system("rm -rf \'%s\'" % outPQ) 
       util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
       raise
 
    except:
-
-      #util.logMessage('Cleanup location \'%s\'' % outPQ)
-      #os.system("rm -rf \'%s\'" % outPQ) 
       util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
       raise # not the error we are looking for
 
@@ -791,13 +872,6 @@ def main(spark,inCSV,outPQ,outCSV):
 
 if __name__ == "__main__":
 
-   if len(sys.argv) < 6:
-      util.logMessage("Error: param incorrect.")
-      sys.exit(2)
-
-   inCSV = sys.argv[2]
-   outPQ = output_dir
-   outCSV = sys.argv[5]
 
    # Configure Spark
    spark = SparkSession \
