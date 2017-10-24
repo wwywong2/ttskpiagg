@@ -281,6 +281,26 @@ def addPkAndSaveParquet(df, writemode, outputDir, numPartition=None):
    df = df.withColumn("HL_SectorLayer", lit(None).cast(StringType()))
    '''
 
+   # create/replace HL_columns and replace with 'unassigned'   
+   df = df.drop("HL_Market")
+   #df = df.withColumn("HL_Cluster", lit('unassigned'))
+   #df = df.withColumn("HL_Area", lit('unassigned'))
+   #df = df.withColumn("HL_Market", lit('unassigned'))
+
+   # recover from lookup parquet
+   # read parquet
+   util.logMessage("reading lookup parquet: %s" % '/mnt/nfs/test/westest_CellLookup.pqz')
+   dfLookup = spark.read.parquet('/mnt/nfs/test/westest_CellLookup.pqz')
+   dfLookup.createOrReplaceTempView('lookup')
+   df.createOrReplaceTempView('kpi')
+   util.logMessage("start market-cluster-area recovery process...")
+
+   # example join sql
+   #sqlDF = spark.sql("SELECT l.TECH,l.VENDOR,l.MARKET,l.CLUSTER,l.AREA,k.EUtranCellFDD from kpi k left join lookup l on k.EUtranCellFDD = l.CELL")
+   # create join dataframe
+   sqlDF = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on k.EUtranCellFDD = l.CELL AND l.TECH = 'LTE'")
+   df = sqlDF
+
    # add key col from HL_MARKET - need to add HL_MARKET because that column will be gone if we go into sub dir
    df = df.withColumn("pk_market", df['HL_MARKET'])
    # add key col from HL_DATE
@@ -410,7 +430,7 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
 
          # save df to csv if not empty
          if sqlDF.count() > 0:
-            saveCsv(sqlDF, csv + "_%02d.csv" % i)
+            saveCsv(sqlDF, csv + "_%s_%02d.csv" % (market,i))
 
 
       # create daily csv
@@ -433,7 +453,7 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
          sqlDF = spark.sql(sqlStrFinal)
 
          # save df to csv if not empty
-         saveCsv(sqlDF, csv + ".csv")
+         saveCsv(sqlDF, csv + "_%s.csv" % market)
 
 
    util.logMessage("finish aggregation process.")
@@ -512,7 +532,7 @@ def aggKPI2(spark, pq, jsonFile, csv):
 
          # save df to csv if not empty
          if sqlDF.count() > 0:
-            saveCsv(sqlDF, csv + "_%02d.csv" % i)
+            saveCsv(sqlDF, csv + "_%s_%02d.csv" % (market,i))
 
 
       # create daily csv
@@ -535,7 +555,7 @@ def aggKPI2(spark, pq, jsonFile, csv):
          sqlDF = spark.sql(sqlStrFinal)
 
          # save df to csv if not empty
-         saveCsv(sqlDF, csv + ".csv")
+         saveCsv(sqlDF, csv + "_%s.csv" % market)
 
 
    util.logMessage("finish aggregation process.")
@@ -616,6 +636,22 @@ def saveCsv(sqlDF, csv):
 
 
 
+def createCellLookup(spark, inCSV, outPQ):
+
+   df = spark.read.csv(inCSV,
+                       ignoreLeadingWhiteSpace=True,
+                       ignoreTrailingWhiteSpace=True,
+                       header=True,
+                       timestampFormat='yyyy-MM-dd HH:mm')
+
+   df.write.parquet(outPQ,
+                    compression='gzip',
+                    mode='overwrite',
+                    partitionBy=('TECH','VENDOR','MARKET'))
+
+
+
+
 
 def main(spark,inCSV,outPQ,outCSV):
 
@@ -646,6 +682,10 @@ def main(spark,inCSV,outPQ,outCSV):
 
       util.logMessage("process start...")
 
+
+      # test creating cell lookup parquet
+      #createCellLookup(spark, inCSV, outPQ) # '/mnt/nfs/test/westest_CellLookup.pqz'
+      #return 0
 
       if inCSV is not "":
 
