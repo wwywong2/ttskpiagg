@@ -555,5 +555,37 @@ def getMesosMaster(zkStr='zk://mesos_master_01:2181,mesos_master_02:2181,mesos_m
 
    return master, int(masterPort)
 
+# get parquet info from folder structure
+def getInfoFromPQ(parquetLocation):
+
+   finalPqList = dict()
+   pqList = glob.glob(parquetLocation+"/*_date=*")
+   if len(pqList) <= 0:  # no date folder
+      return None
+   else:
+      for date in pqList:
+
+         dateStr = date.split("_date=")[1]
+         finalPqList[dateStr] = dict()
+
+         pqMarketList = glob.glob(date+"/*_market=*")
+         if len(pqMarketList) <= 0:  # no market folder
+            pass
+         else:
+            for market in pqMarketList:
+
+               marketStr = market.split("_market=")[1]
+               finalPqList[dateStr][marketStr] = dict()
+
+               pqHrList = glob.glob(market+"/*_hr=*")
+               if len(pqHrList) <= 0:  # no hr folder
+                  pass
+               else:
+                  for hr in pqHrList:
+
+                     hrStr = hr.split("_hr=")[1]
+                     finalPqList[dateStr][marketStr][hrStr] = hr
+
+   return finalPqList
        
        

@@ -591,7 +591,7 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_Cl
 
 
    # from parquet dir get main info: datelist->marketlist->hrlist e.g. {"2016-11-21": {"NY": {"00": "path"}}}
-   infoPq = getInfoFromPQ(pq)
+   infoPq = util.getInfoFromPQ(pq)
    if infoPq is None or len(infoPq.items()) <= 0: # safeguard
       util.logMessage("Error! No data found from parquet file: %s" % pq)
       return None
@@ -748,7 +748,7 @@ def aggKPI2(spark, pq, jsonFile, workdir):
 
 
    # from parquet dir get main info: datelist->marketlist->hrlist e.g. {"2016-11-21": {"NY": {"00": "path"}}}
-   infoPq = getInfoFromPQ(pq)
+   infoPq = util.getInfoFromPQ(pq)
    if infoPq is None or len(infoPq.items()) <= 0: # safeguard
       util.logMessage("Error! No data found from parquet file: %s" % pq)
       return None
@@ -869,47 +869,6 @@ def aggKPI2(spark, pq, jsonFile, workdir):
 
 
    util.logMessage("finish aggregation process.")
-
-
-
-
-
-def getInfoFromPQ(parquetLocation):
-
-   finalPqList = dict()
-   pqList = glob.glob(parquetLocation+"/*_date=*")
-   if len(pqList) <= 0:  # no date folder
-      return None
-   else:
-      for date in pqList:
-
-         dateStr = date.split("_date=")[1]
-         finalPqList[dateStr] = dict()
-      
-         pqMarketList = glob.glob(date+"/*_market=*")
-         if len(pqMarketList) <= 0:  # no market folder
-            pass   
-         else:
-            for market in pqMarketList:
-
-               marketStr = market.split("_market=")[1]
-               finalPqList[dateStr][marketStr] = dict()
-
-               pqHrList = glob.glob(market+"/*_hr=*")
-               if len(pqHrList) <= 0:  # no hr folder
-                  pass
-               else:
-                  for hr in pqHrList:
-
-                     hrStr = hr.split("_hr=")[1]
-                     finalPqList[dateStr][marketStr][hrStr] = hr
-
-   return finalPqList
-
-
-
-  
-
 
 
 

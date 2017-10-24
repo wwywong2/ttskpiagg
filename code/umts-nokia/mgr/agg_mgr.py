@@ -40,7 +40,7 @@ procDatetimeArr[1] = procDatetimeArr[1][:-3]
 ## globals
 prev_jobname = ""
 check_ctr = 0
-exportOnly = False
+exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 
 # argv[1] - input dir
 # argv[2] - output dir - if empty, no export csv
@@ -132,32 +132,6 @@ if 'logfile' not in optionJSON:
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
 
 
-# update master info
-# logic: if master provided, ignore zkStr and set master
-#        else if zkStr provided, use it to find master
-#        else if zkStr empty, use default zkStr (zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos) to find master
-#        if still cannot find master, use default (mesos_master_01)
-if optionJSON[u'master'] != '': # if master defined, not using zookeeper
-   optionJSON[u'zkStr'] = ''
-   util.logMessage("Master default at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
-else: # if master not defined, use zookeeper
-   if optionJSON[u'zkStr'] != '':
-      util.logMessage("Try to determine master using zookeeper string: %s" % optionJSON[u'zkStr'])
-      master, masterPort = util.getMesosMaster(optionJSON[u'zkStr'])
-   else:
-      util.logMessage("Try to determine master using default zookeeper string: %s" % 
-		"zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos")
-      master, masterPort = util.getMesosMaster()
-   if master == '': # master not found through zookeeper
-      optionJSON[u'master'] = "mesos_master_01"
-      util.logMessage("Cannot get master from zookeeper; master default at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
-   else: # master found through zookeeper
-      optionJSON[u'master'] = master
-      optionJSON[u'masterPort'] = masterPort
-      util.logMessage("Master detected at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
-
-# pretty print option JSON
-util.logMessage("Process start with option:\n%s" % json.dumps(optionJSON, sort_keys=True, indent=3))
 
 
 
@@ -168,8 +142,11 @@ try:
    os.makedirs(lockpath)
    util.logMessage("Created lock %s" % lockpath)
 except OSError:
-   util.logMessage("Found existing lock %s, quit process." % lockpath)
-   sys.exit(0)
+   if sys.argv[1] == '': # export only, ignore lock
+      util.logMessage("Found existing lock %s, but continue process (export only)." % lockpath)
+   else: # input dir not empty, save pq, need lock
+      util.logMessage("Found existing lock %s, quit process." % lockpath)
+      sys.exit(0)
 
 
 
@@ -179,18 +156,46 @@ except OSError:
 input_dir = sys.argv[1]
 input_dir = input_dir.rstrip('/')
 if input_dir == '':
-   exportOnly = True
-if input_dir != '' and not os.path.isdir(input_dir):
+   exportMode = 3 # csv only
+if exportMode != 3 and not os.path.isdir(input_dir): # not only export csv
    util.logMessage("Failed to open input location \"%s\"!" % input_dir)
    util.logMessage("Process terminated.")
    util.endProcess(lockpath, 2)
 
+# argv[2] - output dir
+output_dir = sys.argv[2]
+output_dir = output_dir.rstrip('/')
+# new logic: if not export mode 3, reset output_dir to empty,
+# because now only support mode 2 (save pq only) and mode 3 (export csv only)
+# not support mode 1 (save pq and export csv) anymore since current logic doesn't allow
+if exportMode != 3 and output_dir != '':
+   util.logMessage("Mode 1 (pq + csv) not supported, default to mode 2 - output dir \"%s\" not used." % output_dir)
+   output_dir = ''
+if output_dir == '':
+   exportMode = 2 # pq only
+if exportMode != 2 and not os.path.isdir(output_dir): # not only save pq
+   util.logMessage("Failed to open output location \"%s\"!" % output_dir)
+   util.logMessage("Process terminated.")
+   util.endProcess(lockpath, 2)
+
+# safeguard - check if there are files to process for mode 1 or 2 (if none, mode 1 will become 3 - export csv only)
+if exportMode != 3: # not only export csv
+   check_path = input_dir+"/ttskpiraw_%s_%s_*_TMO*.tgz" % (optionJSON[u'vendorFULL'], optionJSON[u'techUp'])
+   if len(glob.glob(check_path)) <= 0:  # no file
+      if exportMode == 2: # if no file and mode 2, error out
+         util.logMessage("No parser output to process: %s" % check_path)
+         util.endProcess(lockpath, 0)
+      else: # if no file and mode 1, changed to mode 3
+         exportMode = 3
+   else: # if have file, keep mode 1
+      pass
+
 # create staging (if not exist)
-if exportOnly:
+if exportMode == 3: # only export csv, no need input dir
    staging_dir = 'placeholder/staging'
-else:
+else: # mode 1 or 2 need to create staging
    staging_dir = input_dir+'/staging'
-if not exportOnly and not os.path.isdir(staging_dir): # create if not exist
+if exportMode != 3 and not os.path.isdir(staging_dir): # create if not exist
    try:
       os.mkdir(staging_dir)
    except:
@@ -200,21 +205,13 @@ if not exportOnly and not os.path.isdir(staging_dir): # create if not exist
 
 # create secondary staging
 staging_dir_sub = staging_dir + "/ttskpiagg_%s_%s_%s_%s_TMO" % (optionJSON[u'vendorFULL'], optionJSON[u'techUp'], procDatetimeArr[0], procDatetimeArr[1])
-if not exportOnly and not os.path.isdir(staging_dir_sub): # create if not exist
+if exportMode != 3 and not os.path.isdir(staging_dir_sub): # create if not exist
    try:
       os.mkdir(staging_dir_sub)
    except:
       util.logMessage("Failed to create folder \"%s\"!" % staging_dir_sub)
       util.logMessage("Process terminated.")
       util.endProcess(lockpath, 2)
-
-# argv[2] - output dir
-output_dir = sys.argv[2]
-output_dir = output_dir.rstrip('/')
-if output_dir != '' and not os.path.isdir(output_dir):
-   util.logMessage("Failed to open output location \"%s\"!" % output_dir)
-   util.logMessage("Process terminated.")
-   util.endProcess(lockpath, 2)
 
 # argv[3] - cell lookup parquet dir
 input_celllookup_parq = sys.argv[3]
@@ -264,6 +261,32 @@ core_per_job = core_per_job + extra_core_per_job
 
 
 
+# update master info
+# logic: if master provided, ignore zkStr and set master
+#        else if zkStr provided, use it to find master
+#        else if zkStr empty, use default zkStr (zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos) to find master
+#        if still cannot find master, use default (mesos_master_01)
+def updateMasterInfo():
+	global optionJSON
+
+	if optionJSON[u'master'] != '': # if master defined, not using zookeeper
+	   optionJSON[u'zkStr'] = ''
+	   util.logMessage("Master default at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
+	else: # if master not defined, use zookeeper
+	   if optionJSON[u'zkStr'] != '':
+	      util.logMessage("Try to determine master using zookeeper string: %s" % optionJSON[u'zkStr'])
+	      master, masterPort = util.getMesosMaster(optionJSON[u'zkStr'])
+	   else:
+	      util.logMessage("Try to determine master using default zookeeper string: %s" % 
+			"zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos")
+	      master, masterPort = util.getMesosMaster()
+	   if master == '': # master not found through zookeeper
+	      optionJSON[u'master'] = "mesos_master_01"
+	      util.logMessage("Cannot get master from zookeeper; master default at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
+	   else: # master found through zookeeper
+	      optionJSON[u'master'] = master
+	      optionJSON[u'masterPort'] = masterPort
+	      util.logMessage("Master detected at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
 
 # get status JSON
 def getStatusJSON():
@@ -528,7 +551,7 @@ def worker(seqfile):
 
 	global prev_jobname
 	seqfile_dir, seqfile_file = os.path.split(seqfile)
-	jobname = 'stg3_' + seqfile_file
+	jobname = 'stg3_' + seqfile_file + "_%d" % exportMode
 	jobname = jobname.replace(' ', '-') # for cluster mode, job name should not contain space - spark bug
 
 	util.logMessage("Task %s start..." % jobname)
@@ -562,7 +585,7 @@ def worker(seqfile):
 
 	# create python string
 	exec_str_py = "%s/../%s_%s_aggregator.py" % (curr_py_dir, optionJSON[u'tech'], optionJSON[u'vendor'])
-	if exportOnly: # mode 3 - export csv only
+	if exportMode == 3: # mode 3 - export csv only
 		exec_str_app = "%s \
 3 \
 %s \
@@ -570,13 +593,15 @@ def worker(seqfile):
 TMO \
 \"%s\" \
 \"%s\" \
+\"%s\" \
 '%s'" % (exec_str_py, 
 		optionJSON[u'vendorUp'],
 		optionJSON[u'techUp'],
 		output_parq,
 		output_dir,
+        input_celllookup_parq,
 		optionJSONStr)
-	elif output_dir == '': # mode 2 - create parquet only
+	elif exportMode == 2: # mode 2 - create parquet only
 		exec_str_app = "%s \
 2 \
 %s \
@@ -594,7 +619,7 @@ TMO \
 		input_celllookup_parq,
 		output_parq,
 		optionJSONStr)
-	else: # mode 1 - create parquet and export csv
+	else: # mode 1 - create parquet and export csv - not support anymore, should not run to here
 		exec_str_app = "%s \
 1 \
 %s \
@@ -615,8 +640,7 @@ TMO \
 		output_dir,
 		optionJSONStr)
 	if proc_mode != 'cluster': # client - support multi master (zookeeper)
-		#exec_str_app += " &" # disable background job for agg to keep app locked and prevent next task from running if this one not finish
-		pass
+		exec_str_app += " &" 
 	else: # cluster - currently not support multi master (zookeeper)
 		pass
 
@@ -662,23 +686,23 @@ def main(input_dir, optionJSON):
    exit(0)
    '''
 
-   global exportOnly
+   global exportMode
 
-   if not exportOnly:
+   if exportMode != 3: # not only export csv
       # go thru all seq file/folder
       inputSeqPath = input_dir+"/ttskpiraw_%s_%s_*_TMO*.tgz" % (optionJSON[u'vendorFULL'], optionJSON[u'techUp'])
       inputSeqList = glob.glob(inputSeqPath)
       if len(inputSeqList) <= 0:  # no file
          util.logMessage("No parser output to process: %s" % inputSeqPath)
          os.system("rm -rf '%s'" % staging_dir_sub) # remove staging sub folder (since will not be removed by proc)
-         if output_dir == '': # if no input, and also no output, end process
+         if exportMode == 2: # if save pq only (no output), and also no input, end process
             util.endProcess(lockpath, 0)
          else: # if no input, but have output, only do export
-            exportOnly = True
+            exportMode = 3
 
 
    # export only mode
-   if exportOnly:
+   if exportMode == 3:
       # submit one process to work on the whole folder (of multiple txt file)
       try:
          # get status
@@ -745,38 +769,75 @@ def main(input_dir, optionJSON):
             util.logMessage("Unexpected error")
 
 
-   # submit one process to work on the whole folder (of multiple txt file)
-   try:
+   # move files into sub folders by file type
+   filetypeArr = []
+   filetypeDirArr = []  
+   stagingFileList = glob.glob(staging_dir_sub+"/*.txt")
+   if len(stagingFileList) > 0:  # safeguard
+      for curr_file in stagingFileList:
+         curr_stg_dir, curr_data_filename = os.path.split(curr_file)
+         filenameArr = curr_data_filename.split('.')[0].split('_')
+         filetype = '_'.join(filenameArr[6:])
+         filetypeDir = staging_dir_sub + '/' + filetype
 
-      # get status
-      statusJSON = getStatusJSON_mesos()
-      bStartNewJob, delay_sec = canStartNewJob(statusJSON)
-      while (bStartNewJob == False):
-         time.sleep(delay_sec)
-         bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
+         if filetype not in filetypeArr: # create new dir
 
-      # process file
-      worker(staging_dir_sub)
+            filetypeArr.append(filetype)        
 
-   except Exception as e:
-      util.logMessage("Error: failed to process file %s\n%s" % (curr_file, e))
-      # WES_TEST: doesn't work like that
-      # try to move it back to input dir for re-processing next round
+            if not os.path.isdir(filetypeDir): # create if not exist
+               try:
+                  os.mkdir(filetypeDir)
+                  filetypeDirArr.append(filetypeDir)
+               except:
+                  util.logMessage("Failed to create folder \"%s\"!" % filetypeDir)
+                  util.logMessage("Process terminated.")
+                  util.endProcess(lockpath, 2)            
+        
+         # move file by filetype
+         try:
+            shutil.move(curr_file, filetypeDir)
+         except shutil.Error as e:
+            util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
+         except:
+            util.logMessage("Unexpected error")
+
+
+   # going to each file type folder in the staging area and submit process
+   for curr_dir in filetypeDirArr:
       try:
-         shutil.move(curr_file, input_dir)
-      except shutil.Error as e:
-         util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
+
+         # get status
+         statusJSON = getStatusJSON_mesos()
+         bStartNewJob, delay_sec = canStartNewJob(statusJSON)
+         while (bStartNewJob == False):
+            time.sleep(delay_sec)
+            bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
+
+         # process file
+         worker(curr_dir)
+
+         # wait some sec before next task
+         time.sleep(new_job_delay_sec)
+
+      except Exception as e:
+         util.logMessage("Error: failed to process file %s\n%s" % (curr_file, e))
+         # WES_TEST: doesn't work like that
+         # try to move it back to input dir for re-processing next round
+         try:
+            shutil.move(curr_file, input_dir)
+         except shutil.Error as e:
+            util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
+         except:
+            util.logMessage("Unexpected error")
       except:
          util.logMessage("Unexpected error")
-   except:
-      util.logMessage("Unexpected error")
-      # try to move it back to input dir for re-processing next round
-      try:
-         shutil.move(curr_file, input_dir)
-      except shutil.Error as e:
-         util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
-      except:
-         util.logMessage("Unexpected error")
+         # try to move it back to input dir for re-processing next round
+         try:
+            shutil.move(curr_file, input_dir)
+         except shutil.Error as e:
+            util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
+         except:
+            util.logMessage("Unexpected error")
 
 
    return 0
@@ -789,7 +850,8 @@ def main(input_dir, optionJSON):
 if __name__ == "__main__":
 
    # Execute Main functionality
-   util.logMessage("multi process started")
+   updateMasterInfo() # update master from zkStr
+   util.logMessage("multi process started with option:\n%s" % json.dumps(optionJSON, sort_keys=True, indent=3)) # pretty print option JSON
    ret = main(input_dir, optionJSON)
    util.logMessage("multi process ended")
    util.endProcess(lockpath, ret)
