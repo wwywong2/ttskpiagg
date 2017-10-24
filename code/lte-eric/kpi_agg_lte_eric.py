@@ -791,8 +791,6 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          suffix = 'null' # safeguard - no schema with _null
 
       # create hourly csv
-      uuidstr_last = '' # init
-
       for exportDateHour in exportMarketItem:
 
          exportDate = exportDateHour.split('|')[0]
@@ -802,8 +800,6 @@ def aggKPI2(spark, pq, jsonFile, workdir):
 
          # append hr to run id
          uuidstr_final = "%02d-%s" % (int(exportHour),uuidstr)
-         if uuidstr_last == '':
-            uuidstr_last = uuidstr_final
 
          # replace with real uuid
          sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
@@ -818,8 +814,8 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          # save df to csv if not empty
          if sqlDF.count() > 0:
 
-            csv2 = "_%s_%s_%s_%s" % (
-					exportDate, suffix, exportMarket.replace(' ', '-'), uuidstr_final)
+            csv2 = "_%s_%s_%s_%02d" % (
+			exportDate, suffix, exportMarket.replace(' ', '-'), int(exportHour))
          
             # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
             #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
@@ -829,7 +825,7 @@ def aggKPI2(spark, pq, jsonFile, workdir):
             # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
             #       workdir1 - /mnt/nfs/test/
             #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
-            outCSVTgz = "%s%s.tgz" % (csv1, csv2)
+            outCSVTgz = "%s%s-%s.tgz" % (csv1, csv2, uuidstr)
             try:
                util.logMessage('zipping files: cd %s && tar -cvzf %s %s%s.csv' % (workdir, outCSVTgz, csv1, csv2))
                os.system("cd %s && tar -cvzf %s %s%s.csv" % (workdir, outCSVTgz, csv1, csv2))
@@ -870,8 +866,8 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          #print sqlStrFinal
          sqlDF = spark.sql(sqlStrFinal)
 
-         csv2 = "_%s_%s_%s_%s" % (
-				exportDate, suffix, exportMarket.replace(' ', '-'), uuidstr_final)
+         csv2 = "_%s_%s_%s_24" % (
+				exportDate, suffix, exportMarket.replace(' ', '-'))
 
          # save df to csv
          # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
@@ -883,7 +879,7 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          #       workdir1 - /mnt/nfs/test/
          #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
 
-         outCSVTgz = "%s%s.tgz" % (csv1, csv2)
+         outCSVTgz = "%s%s-%s.tgz" % (csv1, csv2, uuidstr)
          try:
             util.logMessage('zipping files: cd %s && tar -cvzf %s %s%s.csv' % (workdir, outCSVTgz, csv1, csv2))
             os.system("cd %s && tar -cvzf %s %s%s.csv" % (workdir, outCSVTgz, csv1, csv2))
