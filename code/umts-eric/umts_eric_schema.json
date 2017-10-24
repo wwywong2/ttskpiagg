@@ -1,60 +1,350 @@
 [
-  { "name": "MGR_RUNID", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "HL_DATE", "type": "timestamp", "nullable": true, "metadata": "" },
-  { "name": "HL_MARKET", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "Cntr", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "Region", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "Market", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "SubNetwork_2", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "PERIOD_START_TIME", "type": "timestamp", "nullable": true, "metadata": "" },
-  { "name": "PERIOD_DURATION", "type": "integer", "nullable": true, "metadata": "" },
-  { "name": "MeContext", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "UtranCell", "type": "string", "nullable": true, "metadata": "" },
-  { "name": "pmAttNonBlindInterFreqHoCsSpeech12", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmCellDowntimeAuto", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmCellDowntimeMan", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmChSwitchAttemptUraFach", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmChSwitchSuccUraFach", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePs128", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePs16", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePs384", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePs64", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePs8", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePsCommon", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePsIntHs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePsStr128", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePsStr16", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmDlTrafficVolumePsStr64", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmFailNonBlindInterFreqHoFailRevertCsSpeech12", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoDirRetryAtt", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoLoadSharingRrcConnCs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoLoadSharingRrcConnPs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoNormalNasSignReleaseCs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoNormalRabReleaseSpeech", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoRabEstablishAttemptSpeech", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoRabEstablishSuccessSpeech", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoRabEstablishAttemptPacketInteractive", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoRabEstablishSuccessPacketInteractive", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoSysRelSpeechNeighbr", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoSystemNasSignReleaseCs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoSystemRabReleaseSpeech", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmNoTimesCellFailAddToActSet", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSamplesDchDlRlcUserPacketThp", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSamplesHsDlRlcUserPacketThp", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSamplesUlRssi", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSuccNonBlindInterFreqHoCsSpeech12", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestAmr12200RabEstablish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestAmr4750RabEstablish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestAmr5900RabEstablish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestAmr7950RabEstablish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestAmrNbMmRabEstablish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestAmrWbRabEstablish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumBestCs12Establish", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumDchDlRlcUserPacketThp", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumHsDlRlcUserPacketThp", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmSumUlRssi", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmTotNoRrcConnectReqCs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmTotNoRrcConnectReqCsSucc", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmTotNoRrcConnectReqPs", "type": "double", "nullable": true, "metadata": "" },
-  { "name": "pmTotNoRrcConnectReqPsSucc", "type": "double", "nullable": true, "metadata": "" }
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "MGR_RUNID", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "timestamp", 
+        "name": "HL_DATE", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "HL_MARKET", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "Cntr", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Region", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "Market", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "SubNetwork_2", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "timestamp", 
+        "name": "PERIOD_START_TIME", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "PERIOD_DURATION", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "MeContext", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "string", 
+        "name": "UtranCell", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmAttNonBlindInterFreqHoCsSpeech12", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmCellDowntimeAuto", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmCellDowntimeMan", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmChSwitchAttemptUraFach", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmChSwitchSuccUraFach", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePs128", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePs16", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePs384", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePs64", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePs8", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePsCommon", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePsIntHs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePsStr128", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePsStr16", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmDlTrafficVolumePsStr64", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmFailNonBlindInterFreqHoFailRevertCsSpeech12", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoDirRetryAtt", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoLoadSharingRrcConnCs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoLoadSharingRrcConnPs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoNormalNasSignReleaseCs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoNormalRabReleaseSpeech", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoRabEstablishAttemptSpeech", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoRabEstablishSuccessSpeech", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoRabEstablishAttemptPacketInteractive", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoRabEstablishSuccessPacketInteractive", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoSysRelSpeechNeighbr", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoSystemNasSignReleaseCs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoSystemRabReleaseSpeech", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmNoTimesCellFailAddToActSet", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSamplesDchDlRlcUserPacketThp", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSamplesHsDlRlcUserPacketThp", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSamplesUlRssi", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSuccNonBlindInterFreqHoCsSpeech12", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestAmr12200RabEstablish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestAmr4750RabEstablish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestAmr5900RabEstablish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestAmr7950RabEstablish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestAmrNbMmRabEstablish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestAmrWbRabEstablish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumBestCs12Establish", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumDchDlRlcUserPacketThp", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumHsDlRlcUserPacketThp", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmSumUlRssi", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmTotNoRrcConnectReqCs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmTotNoRrcConnectReqCsSucc", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmTotNoRrcConnectReqPs", 
+        "nullable": true
+    }, 
+    {
+        "metadata": {}, 
+        "type": "double", 
+        "name": "pmTotNoRrcConnectReqPsSucc", 
+        "nullable": true
+    }
 ]

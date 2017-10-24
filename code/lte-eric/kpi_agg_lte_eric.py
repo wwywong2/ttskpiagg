@@ -49,6 +49,9 @@ if len(sys.argv) > 1:
 schemaFile = ""
 if len(sys.argv) > 3:
    schemaFile = sys.argv[3]
+sqlFile = schemaFile.replace('_schema', '_sql')
+
+
 
 # argv[4] - output dir
 output_dir = ""
@@ -161,7 +164,7 @@ def jsonToSchema(jsonFile):
 
 
 # read each csv into df then export to parquet
-def csvToParquet(spark, inputCsv, schema, outputDir):
+def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None):
 
    # read csv file(s) into dataframe
    filecount = 0 # init
@@ -191,7 +194,7 @@ def csvToParquet(spark, inputCsv, schema, outputDir):
             writemode = 'overwrite'
          else:
             writemode = 'append'
-         addPkAndSaveParquet(df, writemode, outputDir)
+         addPkAndSaveParquet(df, writemode, outputDir, numPartition)
 
    return 0
 
@@ -199,7 +202,7 @@ def csvToParquet(spark, inputCsv, schema, outputDir):
 
 
 # read group of csvs and union into df then export to parquet
-def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10):
+def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartition=None):
 
    # read csv file(s) into dataframe
    filecount = 0 # init
@@ -232,7 +235,7 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10):
                firsttime = False
             else:
                writemode = 'append'
-            addPkAndSaveParquet(maindf, writemode, outputDir)
+            addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
 
          maindf = df
       else:
@@ -247,22 +250,33 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10):
       firsttime = False
    else:
       writemode = 'append'
-   addPkAndSaveParquet(maindf, writemode, outputDir)
+   addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
 
 
    return 0
 
 
 
-def addPkAndSaveParquet(df, writemode, outputDir):
+def addPkAndSaveParquet(df, writemode, outputDir, numPartition=None):
 
    util.logMessage("adding partition columns...")
+
+   '''
+   # add key col from HL_Area
+   df = df.withColumn("HL_Area", lit('unassigned'))
+   # add key col from HL_Cluster
+   df = df.withColumn("HL_Cluster", lit('unassigned'))
+   # add key col from HL_SectorLayer
+   df = df.withColumn("HL_SectorLayer", lit(None).cast(StringType()))
+   '''
+
    # add key col from HL_MARKET - need to add HL_MARKET because that column will be gone if we go into sub dir
    df = df.withColumn("pk_market", df['HL_MARKET'])
    # add key col from HL_DATE
    df = df.withColumn("pk_date", date_format(df['HL_DATE'], 'yyyy-MM-dd'))
    # add key col from PERIOD_START_TIME
    df = df.withColumn("pk_hr", date_format(df['PERIOD_START_TIME'], 'HH'))
+
 
    # show dtypes
    #util.logMessage("dtypes: %s" % df.dtypes)
@@ -271,14 +285,21 @@ def addPkAndSaveParquet(df, writemode, outputDir):
    #df.show(1,truncate=False)
 
    util.logMessage("start writing parquet file (%s): %s" % (writemode, outputDir))
-   df.write.parquet(outputDir,
-                    compression='gzip',
-                    mode=writemode,
-                    partitionBy=('pk_market','pk_date','pk_hr'))
+   if numPartition is None:
+      df.write.parquet(outputDir,
+                       compression='gzip',
+                       mode=writemode,
+                       partitionBy=('pk_date','pk_market','pk_hr'))
+   else:
+      # coalesce - num of partition - should match number of executor we run
+      df.coalesce(numPartition).write.parquet(outputDir,
+                       compression='gzip',
+                       mode=writemode,
+                       partitionBy=('pk_date','pk_market','pk_hr'))
    util.logMessage("finish writing parquet file (%s): %s" % (writemode, outputDir))     
 
 
-def aggKPI(spark, pq, jsonFile):
+def aggKPI1(spark, pq, jsonFile):
 
    try:
       with open(jsonFile) as json_data:
@@ -316,14 +337,32 @@ def aggKPI(spark, pq, jsonFile):
    util.logMessage("start aggregation process...")
 
    df.createOrReplaceTempView('kpi')
-   sqlDF = spark.sql("SELECT %s \
-pk_market,pk_date,pk_hr \
+
+   # get uuid for MGR_RUN_ID
+   uuidstr = str(uuid.uuid4())
+
+   sqlStrFinal = "SELECT \
+'%s' AS MGR_RUN_ID, \
+MIN(Region) AS Region, \
+MIN(Market) AS Market, \
+MIN(SubNetwork_2) AS SubNetwork_2, \
+HL_DATE AS PERIOD_START_TIME, \
+%s \
+HL_DATE AS HL_Date_Hour, \
+HL_DATE AS HL_Date, \
+EUtranCellFDD AS HL_Sector, \
+'' AS HL_SectorLayer, \
+MeContext AS HL_Site, \
+'unassigned' AS HL_Cluster, \
+'unassigned' AS HL_Area, \
+HL_Market \
 FROM kpi \
-/*where utrancell = 'UBQ04335C32'*/ \
-GROUP BY pk_market,pk_date,pk_hr,utrancell \
-ORDER BY pk_market,pk_date,pk_hr,MeContext,UtranCell" % sqlStr)
+/*GROUP BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_SectorLayer,HL_Cluster,HL_Area*/ \
+GROUP BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_DATE \
+ORDER BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD" % (uuidstr, sqlStr)
 
-
+   #print sqlStrFinal
+   sqlDF = spark.sql(sqlStrFinal)
 
    # output to csv file
    #sqlDF.show(10, truncate=False)
@@ -337,7 +376,61 @@ ORDER BY pk_market,pk_date,pk_hr,MeContext,UtranCell" % sqlStr)
    sqlDF.coalesce(1).write.csv(csvLocation, 
                                header=True, 
                                mode='overwrite', 
-                               sep='|', 
+                               sep=',', 
+                               dateFormat='yyyy-MM-dd', 
+                               timestampFormat='yyyy-MM-dd HH:mm:ss')
+                               #timestampFormat='yyyy-MM-dd HH:mm:ss.SSS')
+
+
+   util.logMessage("finish aggregation process.")
+
+
+
+
+
+def aggKPI2(spark, pq, jsonFile):
+
+   try:
+      with open(jsonFile) as json_data:
+         sqlJson = json.load(json_data)
+         #sqlStrFinal = "SELECT " + sqlJson[0]['SELECT'] + " FROM kpi WHERE HL_DATE='2016-09-10 00:00:00' GROUP BY " + sqlJson[0]['GROUPBY']
+         sqlStrFinal = "SELECT " + sqlJson[0]['SELECT'] + " FROM kpi GROUP BY " + sqlJson[0]['GROUPBY']
+
+   except Exception as e:
+      util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
+      return None
+
+   except:
+      util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
+      return None
+
+   util.logMessage("reading parquet: %s" % pq)
+   df = spark.read.parquet(pq)
+   util.logMessage("start aggregation process...")
+
+   df.createOrReplaceTempView('kpi')
+
+   # get uuid for MGR_RUN_ID - only temporary - future will have this column
+   uuidstr = str(uuid.uuid4())
+   # replace with real uuid
+   sqlStrFinal = sqlStrFinal.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
+
+   #print sqlStrFinal
+   sqlDF = spark.sql(sqlStrFinal)
+
+   # output to csv file
+   #sqlDF.show(10, truncate=False)
+   #util.logMessage("count: %d" % sqlDF.count())
+   util.logMessage("save to csv....")
+
+   #csvDir, csvFile = os.path.split(pq)
+   #csvFile += '.csv'
+   csvLocation = pq + '.csv'
+   
+   sqlDF.coalesce(1).write.csv(csvLocation, 
+                               header=True, 
+                               mode='overwrite', 
+                               sep=',', 
                                dateFormat='yyyy-MM-dd', 
                                timestampFormat='yyyy-MM-dd HH:mm:ss')
                                #timestampFormat='yyyy-MM-dd HH:mm:ss.SSS')
@@ -360,6 +453,12 @@ def main(spark,filename,outfilename):
          if schemaFile is not "":
             util.logMessage("addFile: %s" % curr_py_dir+'/'+schemaFile)
             sc.addFile(curr_py_dir+'/'+schemaFile)
+         '''
+         # need to enable when run cluster mode
+         if sqlFile is not "":
+            util.logMessage("addFile: %s" % curr_py_dir+'/'+sqlFile)
+            sc.addFile(curr_py_dir+'/'+sqlFile)
+         '''
 
          # add py reference
          util.logMessage("addPyFile: %s" % curr_py_dir+'/util.py')
@@ -373,7 +472,7 @@ def main(spark,filename,outfilename):
 
       # get schema
       schema = None # init
-      #schemaFile = "umts_eric_schema.json"
+      #schemaFile = "lte_eric_schema.json"
       if schemaFile is not "":
          #schema = jsonToSchema(SparkFiles.get(schemaFile)) # might need this one when running cluster mode
          schema = jsonToSchema(curr_py_dir+'/'+schemaFile)
@@ -385,14 +484,15 @@ def main(spark,filename,outfilename):
 
 
       # read csv file(s) into dataframe then save into parquet
-      #csvToParquet(spark, filename, schema, output_dir) # old way - read 1 save 1
-      csvToParquet2(spark, filename, schema, output_dir, 20) # new way - read 20 save 1
+      #csvToParquet1(spark, filename, schema, output_dir) # old way - read 1 save 1
+      csvToParquet2(spark, filename, schema, output_dir, 10, numPartition=4) # new way - read 20 save 1
 
       # sample code
       #sampleCode(spark)
 
-      # aggregation by hour and save to another pq
-      aggKPI(spark, output_dir, curr_py_dir+'/'+schemaFile)
+      # aggregation by hour and save to csv
+      #aggKPI1(spark, output_dir, curr_py_dir+'/'+schemaFile) # grab sql info from schema file itself
+      aggKPI2(spark, output_dir, curr_py_dir+'/'+sqlFile) # grab sql info from sql file 
 
 
 
@@ -421,75 +521,6 @@ def main(spark,filename,outfilename):
 
    util.logMessage("finish process successfully.")
    return 0
-
-
-
-   # WES_TEST: review below whether it is needed
-
-   try:
-
-      if proc_mode == 'cluster':
-         # copy std logs into output      
-         util.logMessage('Copying logs')
-         sys.stdout.flush()
-         sys.stderr.flush()
-         os.system("cp std* \'%s\'" % output_dir)
-
-
-      # zip folder into file
-      output_gz_path = curr_py_dir+'/'+output_gz_file
-      util.logMessage('Zipping files: cd %s && tar -cvzf %s *' % (output_dir, output_gz_path))
-      os.system("cd %s && tar -cvzf %s *" % (output_dir, output_gz_path))
-
-
-      # copy file to external location
-      # method 1 (cannot take '*'): recursive: .../output --> .../result/output/*
-      '''
-      util.logMessage('Copying to remote location @ %s: %s' % (outfile_addr, outfile_path))
-      ret = util.copyFileToRemote1(outfile_addr, outfile_user, 'tts1234', output_dir, outfile_path)
-      if not ret['ret']:
-         #util.logMessage('ret: %s' % ret) # cmd, ret, retCode
-         util.logMessage('Copy to remote location failed: %s - Error Code: %s' % (outfile_path, ret['retCode']))
-         sys.exit(1)
-      '''
-
-      # method 2 (take '*'): recursive: .../output/* --> .../result/*
-      util.logMessage('Copying to remote location @ %s: %s' % (outfile_addr, outfile_path))
-      #ret = util.copyFileToRemote2(outfile_addr, outfile_user, 'tts1234', output_dir+'/*', outfile_path)
-      ret = util.copyFileToRemote2(outfile_addr, outfile_user, 'tts1234', output_gz_path, outfile_path)
-      if not ret['ret']:
-         #util.logMessage('ret: %s' % ret) # cmd, ret, retCode, errmsg, outmsg
-         util.logMessage('Copy to remote location failed: %s - Error Code: %s' % (outfile_path, ret['retCode']))
-         util.logMessage('Error Msg: %s' % ret['errmsg'])
-         #sys.exit(1)
-         return ret['retCode']
-
-      util.logMessage('Finished copying to remote location @ %s: %s' % (outfile_addr, outfile_path))
-
-   
-   except Exception as e:
-
-      util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
-      raise # not the error we are looking for
-
-   except:
-
-      util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
-      raise # not the error we are looking for
-
-   finally: 
-
-      # cleanup - remove local output file
-      util.logMessage('Cleanup location \'%s\'' % output_dir)
-      os.system("rm -rf \'%s\'" % output_dir) 
-      os.system("rm -f \'%s\'" % output_gz_path) 
-
-
-
-   return 0
-
-
-
 
 
 
