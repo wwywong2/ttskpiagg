@@ -43,7 +43,8 @@ dictMarketLookup = None # this stores the market - suffix lookup
 
 
 # argv[1] - process name
-# argv[2] - input file (csv) e.g. "/mnt/nfs/test_results/eric/lte/set_*-*/set_001.txt"; if empty, skip to next stage
+# argv[2] - input file (txt) e.g. "/mnt/nfs/test_results/eric/lte/set_*-*/set_001.txt"; if empty, skip to next stage
+#           WARNING: the folder that holds the input file will be deleted once input files are archive!
 # argv[3] - schema file (json) (empty if not needed) e.g. "lte_eric_schema.json"
 # argv[4] - input cell lookup parquet  e.g. "/mnt/nfs/test/westest_CellLookup.pqz"
 # argv[5] - output parquet dir e.g. "/mnt/nfs/test/westest_lte.pqz"
@@ -60,8 +61,9 @@ def printUsage():
 
    print 'Detail:'
    print '   procName     - process name (mandatory)'
-   print '   inFile       - input file (csv) e.g. "/mnt/nfs/test/set_*-*/set_00*.txt";'
+   print '   inFile       - input file (txt) e.g. "/mnt/nfs/test/set_*-*/set_00*.txt";'
    print '                  if empty, only do aggregation on existing parquet & export to csv'
+   print '                  WARNING: the folder that holds the input file will be deleted once input files are archive!'
    print '   inSchemaFile - schema file (json) (empty if not needed) e.g. "lte_eric_schema.json"'
    print '   inLookupPQ   - input cell lookup parquet (mandatory) e.g. "/mnt/nfs/test/cellLookup.pqz"'
    print '   outPQ        - output parquet dir (mandatory) e.g. "/mnt/nfs/test/outLte.pqz"'
@@ -168,6 +170,9 @@ if not proc_mode == 'cluster':
    proc_mode = 'client'
 
 
+# get proc time - [0] proc date yyyymmdd; [1] proc time hhmmssiii (last 3 millisec)
+procDatetimeArr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
+procDatetimeArr[1] = procDatetimeArr[1][:-3]
 
 
 
@@ -283,9 +288,10 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None, overwri
    # read csv file(s) into dataframe
    filecount = 0 # init
 
-   # get archive folder - assume it is under the same level as input file, if not exists, create
-   archiveDir1, archiveDir2 = os.path.split(inputCsv)
-   archiveDir = archiveDir1 + '/archive'
+   # get archive folder - assume it is one level above input file, if not exists, create
+   inputCsvTempDir, inputCsvFile = os.path.split(inputCsv)
+   baseDir, dirTemp = os.path.split(inputCsvTempDir)
+   archiveDir = os.path.join(baseDir, 'archive')
    if not os.path.isdir(archiveDir): # create if not exist
       try:
          util.logMessage("archive folder not exist. Create folder \"%s\"" % archiveDir)
@@ -320,6 +326,28 @@ def csvToParquet1(spark, inputCsv, schema, outputDir, numPartition=None, overwri
             writemode = 'append'
          addPkAndSaveParquet(df, writemode, outputDir, numPartition)
 
+
+   # tar and move input file to archive
+   if (archiveDir != ''): # if cannot create archive folder, don't do anything
+
+      # e.g. ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO.txt
+      csvArr = inputCsvFile.split('.')[0].split('_')
+      if len(csvArr) < 4:
+         util.logMessage("Error getting input filename element: %s" % inputCsvFile)
+         return 0
+      archiveCsvTgz = "ttskpiagg_%s_%s_%s_%s_%s.tgz" % (
+        csvArr[1], csvArr[2], procDatetimeArr[0], procDatetimeArr[1], csvArr[-1])
+
+      util.logMessage('zipping files: cd %s && tar -cvzf %s *.txt' % (inputCsvTempDir, archiveCsvTgz))
+      os.system("cd %s && tar -cvzf %s *.txt" % (inputCsvTempDir, archiveCsvTgz))
+      os.system("rm -rf '%s'" % (archiveDir+'/'+archiveCsvTgz)) # remove old output file
+      shutil.move(inputCsvTempDir+'/'+archiveCsvTgz, archiveDir+'/'+archiveCsvTgz)
+
+      # remove work dir
+      os.system("rm -rf '%s'" % inputCsvTempDir)
+      util.logMessage('zipping files successful: %s' % archiveDir+'/'+archiveCsvTgz)
+
+
    return 0
 
 
@@ -332,9 +360,10 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
    filecount = 0 # init
    firsttime = True
 
-   # get archive folder - assume it is under the same level as input file, if not exists, create
-   archiveDir1, archiveDir2 = os.path.split(inputCsv)
-   archiveDir = archiveDir1 + '/archive'
+   # get archive folder - assume it is one level above input file, if not exists, create
+   inputCsvTempDir, inputCsvFile = os.path.split(inputCsv)
+   baseDir, dirTemp = os.path.split(inputCsvTempDir)
+   archiveDir = os.path.join(baseDir, 'archive')
    if not os.path.isdir(archiveDir): # create if not exist
       try:
          util.logMessage("archive folder not exist. Create folder \"%s\"" % archiveDir)
@@ -394,10 +423,25 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
       util.logMessage("dataframe empty, no need to save to parquet")
 
 
-   # move input file to archive - WES_TEST: need to zip into package?
+   # tar and move input file to archive
    if (archiveDir != ''): # if cannot create archive folder, don't do anything
-      for curr_file in sorted(inputCsvList):
-         shutil.move(curr_file, archiveDir + '/' + curr_file.split('/')[-1])
+
+      # e.g. ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO.txt
+      csvArr = inputCsvFile.split('.')[0].split('_')
+      if len(csvArr) < 4:
+         util.logMessage("Error getting input filename element: %s" % inputCsvFile)
+         return 0
+      archiveCsvTgz = "ttskpiagg_%s_%s_%s_%s_%s.tgz" % (
+	csvArr[1], csvArr[2], procDatetimeArr[0], procDatetimeArr[1], csvArr[-1])
+
+      util.logMessage('zipping files: cd %s && tar -cvzf %s *.txt' % (inputCsvTempDir, archiveCsvTgz))
+      os.system("cd %s && tar -cvzf %s *.txt" % (inputCsvTempDir, archiveCsvTgz))
+      os.system("rm -rf '%s'" % (archiveDir+'/'+archiveCsvTgz)) # remove old output file
+      shutil.move(inputCsvTempDir+'/'+archiveCsvTgz, archiveDir+'/'+archiveCsvTgz)
+
+      # remove work dir
+      os.system("rm -rf '%s'" % inputCsvTempDir)
+      util.logMessage('zipping files successful: %s' % archiveDir+'/'+archiveCsvTgz)
 
 
 
@@ -463,10 +507,6 @@ def addPkAndSaveParquet(origDF, writemode, outputDir, numPartition=None):
 
 
 def aggKPI1(spark, pq, jsonFile, workdir):
-
-   # get proc time
-   procDatetimeArr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
-   procDatetimeArr[1] = procDatetimeArr[1][:-3]
 
    # get folder name e.g. /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123
    workdir = workdir.rstrip('/')
@@ -660,10 +700,6 @@ def aggKPI2(spark, pq, jsonFile, workdir):
 
    sqlStrFinal = ''
    sqlStr = ''
-
-   # get proc time
-   procDatetimeArr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
-   procDatetimeArr[1] = procDatetimeArr[1][:-3]
 
    # get folder name e.g. /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123
    workdir = workdir.rstrip('/')
@@ -949,6 +985,7 @@ def main(spark,inCSV,outPQ,outCSV):
 
 
       # 1. create lookup tables - result saved to globals
+      util.logMessage("<STAGE I: Read lookup parquet>")
       loadCellLookup(inCellLookupPQ)
       if dfCellLookup is None or dictMarketLookup is None or len(dictMarketLookup) <= 0:
          util.logMessage("failed to load lookup parquet: %s" % inCellLookupPQ)
@@ -957,6 +994,8 @@ def main(spark,inCSV,outPQ,outCSV):
 
       # 2. load kpi into agg pq
       if inCSV is not "":
+
+         util.logMessage("<STAGE II: Load KPI into aggregation parquet>")
 
          # get schema
          schema = None # init
@@ -981,12 +1020,17 @@ def main(spark,inCSV,outPQ,outCSV):
          # sample code
          #sampleCode(spark)
 
+      else:
+         util.logMessage("<No input location provided, skip STAGE II>")
+
       # end of if inCSV is not "":
 
 
 
       # 3. aggregation by hour and save to csv
       if outCSV is not "":
+
+         util.logMessage("<STAGE III: Run aggregation process and export hourly KPI>")
 
          outCSV = outCSV.rstrip('/')
          outCSVTmp = outCSV + '_' + datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:-3]
@@ -1016,6 +1060,9 @@ def main(spark,inCSV,outPQ,outCSV):
             util.logMessage("failed to aggregate to '%s'!" % outCSVTmp)
             os.system("rm -rf '%s'" % outCSVTmp) # remove temp output folder
             return 0
+
+      else:
+         util.logMessage("<No output location provided, skip STAGE III>")
 
       # end of if outCSV is not "":
 
