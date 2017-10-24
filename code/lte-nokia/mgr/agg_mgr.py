@@ -913,11 +913,20 @@ def main(input_dir, optionJSON):
 
 if __name__ == "__main__":
 
-   # Execute Main functionality
-   updateMasterInfo() # update master from zkStr
-   util.logMessage("multi process started with option:\n%s" % json.dumps(optionJSON, sort_keys=True, indent=3)) # pretty print option JSON
-   ret = main(input_dir, optionJSON)
-   util.logMessage("multi process ended")
-   util.endProcess(lockpath, ret)
+   try:
+      # Execute Main functionality
+      updateMasterInfo() # update master from zkStr
+      util.logMessage("multi process started with option:\n%s" % json.dumps(optionJSON, sort_keys=True, indent=3)) # pretty print option JSON
+      ret = main(input_dir, optionJSON)
+      util.logMessage("multi process ended")
+      util.endProcess(lockpath, ret)
+   except Exception as e:
+      util.logMessage("Error: Main Proc exception occur\n%s" % e)
+      util.logMessage("Process terminated.")
+      util.endProcess(lockpath, 1)
+   except:
+      util.logMessage("Unexpected error")
+      util.logMessage("Process terminated.")
+      util.endProcess(lockpath, 1)
 
 
