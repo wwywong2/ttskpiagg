@@ -45,37 +45,43 @@
         "metadata": {}, 
         "type": "double", 
         "name": "PERIOD_DURATION", 
-        "nullable": true
+        "nullable": true,
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 
         "type": "string", 
         "name": "MeContext", 
-        "nullable": true
+        "nullable": true,
+        "agg": "MeContext"
     }, 
     {
         "metadata": {}, 
         "type": "string", 
         "name": "EUtranCellFDD", 
-        "nullable": true
+        "nullable": true,
+        "agg": "EUtranCellFDD"
     }, 
     {
         "metadata": {}, 
         "type": "double", 
         "name": "pmActiveDrbDlSum", 
-        "nullable": true
+        "nullable": true,
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 
         "type": "double", 
         "name": "pmActiveDrbUlSum", 
-        "nullable": true
+        "nullable": true,
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 
         "type": "double", 
         "name": "pmActiveUeDlMax", 
-        "nullable": true
+        "nullable": true,
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 

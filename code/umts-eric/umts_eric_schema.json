@@ -52,7 +52,7 @@
         "type": "double", 
         "name": "PERIOD_DURATION", 
         "nullable": true,
-        "agg": "60"
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 

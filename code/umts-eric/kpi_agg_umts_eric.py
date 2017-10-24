@@ -36,10 +36,10 @@ curr_py_path = os.path.realpath(__file__) # current running file - abs path
 curr_py_dir, curr_py_filename = os.path.split(curr_py_path)  # current file and folder - abs path
 
 # argv[1] - process name
-# argv[2] - input file (csv) e.g. "/mnt/nfs/test_results/eric/umts/set_*-*/set_001.txt"
+# argv[2] - input file (csv) e.g. "/mnt/nfs/test_results/eric/umts/set_*-*/set_001.txt"; if empty, skip to next stage
 # argv[3] - schema file (json) (empty if not needed) e.g. "umts_eric_schema.json"
 # argv[4] - output parquet dir e.g. "/mnt/nfs/test/westest_umts.pqz"
-# argv[5] - output csv e.g. "/mnt/nfs/test/westest_umts.csv"
+# argv[5] - output csv e.g. "/mnt/nfs/test/westest_umts"; if empty, not creating export
 # argv[6] - process mode: 'client' or 'cluster'
 
 APP_NAME = "kpiAggrApp"
@@ -372,11 +372,12 @@ GROUP BY HL_DATE,pk_date,pk_market,UtranCell \
       util.logMessage("Error! No data found from parquet file: %s" % pq)
       return None
 
+   # read parquet
    util.logMessage("reading parquet: %s" % pq)
    df = spark.read.parquet(pq)
+   df.createOrReplaceTempView('kpi')
    util.logMessage("start aggregation process...")
 
-   df.createOrReplaceTempView('kpi')
 
    # get latest date for now
    date,dateItem = sorted(infoPq.items(), reverse=True)[0] # only take the first time - lastest date
@@ -384,26 +385,25 @@ GROUP BY HL_DATE,pk_date,pk_market,UtranCell \
    # create csv by market
    for market,marketItem in dateItem.items():
 
-      util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
-
       #for hour,hourItem in marketItem.items(): # key2: hour; value: pathname
       #   util.logMessage("creating csv for hr: %s" % hour)
+
+      util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
 
       numMaxHr = len(marketItem.items()) # get num of hours to run csv
       if numMaxHr > 24: # safeguard
          numMaxHr = 24
 
+      # create hourly csv
       for i in xrange(0,numMaxHr):
 
-         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
-
-         # get uuid for MGR_RUN_ID - only temporary - future will have this column
+         # get uuid for MGR_RUN_ID
          uuidstr = str(uuid.uuid4())
-
          # replace with real uuid
          sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr)
 
          # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
          sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
 
          #print sqlStrFinal
@@ -414,24 +414,19 @@ GROUP BY HL_DATE,pk_date,pk_market,UtranCell \
             saveCsv(sqlDF, csv + "_%02d.csv" % i)
 
 
+      # create daily csv
       if numMaxHr > 0: # if there is any hr data, create daily data
 
-         # create overall csv (daily)
-         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
-
-         # get uuid for MGR_RUN_ID - only temporary - future will have this column
+         # get uuid for MGR_RUN_ID
          uuidstr = str(uuid.uuid4())
-
          # replace with real uuid
          sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr)
 
          # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
          sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
 
-         # replace duration
-         sqlStrFinal = sqlStrFinal.replace("(60) AS PERIOD_DURATION", "(1440) AS PERIOD_DURATION")
-
-         # replace group by clause and hl_date col - WES_TEST: a bit static to wipe out hl_date group by
+         # replace group by clause and hl_date col - to remove hl_date(hourly) group by 
          sqlStrFinal = sqlStrFinal.replace("HL_DATE AS", "MIN(from_unixtime(unix_timestamp(HL_DATE, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) AS")
          sqlStrFinal = sqlStrFinal.replace("GROUP BY HL_DATE,", "GROUP BY ")
 
@@ -456,8 +451,7 @@ def aggKPI2(spark, pq, jsonFile, csv):
       with open(jsonFile) as json_data:
          sqlJson = json.load(json_data)
          for feature in sqlJson['features']:
-            if feature['name'] == 'umts_eric': # only looking for umte eric feature
-               #sqlStr = "SELECT " + sqlJson[0]['SELECT'] + " FROM kpi WHERE HL_DATE='2016-09-10 00:00:00' GROUP BY " + sqlJson[0]['GROUPBY']
+            if feature['name'] == 'umts_eric': # only looking for umts eric feature
                sqlStr = "SELECT " + feature['sql'][0]['SELECT'] + " FROM kpi [##where##] GROUP BY " + feature['sql'][0]['GROUPBY']
                break
 
@@ -480,11 +474,12 @@ def aggKPI2(spark, pq, jsonFile, csv):
       util.logMessage("Error! No data found from parquet file: %s" % pq)
       return None
 
+   # read parquet
    util.logMessage("reading parquet: %s" % pq)
    df = spark.read.parquet(pq)
+   df.createOrReplaceTempView('kpi')
    util.logMessage("start aggregation process...")
 
-   df.createOrReplaceTempView('kpi')
 
    # get latest date for now
    date,dateItem = sorted(infoPq.items(), reverse=True)[0] # only take the first time - lastest date
@@ -492,26 +487,25 @@ def aggKPI2(spark, pq, jsonFile, csv):
    # create csv by market
    for market,marketItem in dateItem.items():
 
-      util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
-
-      #for hour,hourItem in marketItem.items(): # key2: hour; value: pathname         
+      #for hour,hourItem in marketItem.items():
       #   util.logMessage("creating csv for hr: %s" % hour)
+
+      util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
 
       numMaxHr = len(marketItem.items()) # get num of hours to run csv
       if numMaxHr > 24: # safeguard
          numMaxHr = 24
 
+      # create hourly csv
       for i in xrange(0,numMaxHr):
 
-         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
-
-         # get uuid for MGR_RUN_ID - only temporary - future will have this column
+         # get uuid for MGR_RUN_ID
          uuidstr = str(uuid.uuid4())
-
          # replace with real uuid
          sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
 
          # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
          sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
 
          #print sqlStrFinal
@@ -522,24 +516,19 @@ def aggKPI2(spark, pq, jsonFile, csv):
             saveCsv(sqlDF, csv + "_%02d.csv" % i)
 
 
+      # create daily csv
       if numMaxHr > 0: # if there is any hr data, create daily data
 
-         # create overall csv (daily)
-         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
-
-         # get uuid for MGR_RUN_ID - only temporary - future will have this column
+         # get uuid for MGR_RUN_ID
          uuidstr = str(uuid.uuid4())
-
          # replace with real uuid
          sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
 
          # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
          sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
 
-         # replace duration
-         sqlStrFinal = sqlStrFinal.replace("60 as PERIOD_DURATION", "1440 as PERIOD_DURATION")
-
-         # replace group by clause and hl_date col - WES_TEST: a bit static to wipe out hl_date group by
+         # replace group by clause and hl_date col - to remove hl_date(hourly) group by
          sqlStrFinal = sqlStrFinal.replace("hl_date as", "MIN(from_unixtime(unix_timestamp(hl_date, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) as")
          sqlStrFinal = sqlStrFinal.replace("GROUP BY hl_date,", "GROUP BY ")
 
@@ -569,7 +558,7 @@ def getInfoFromPQ(parquetLocation):
          finalPqList[dateStr] = dict()
       
          pqMarketList = glob.glob(date+"/*_market=*")
-         if len(pqMarketList) <= 0:  # no date folder
+         if len(pqMarketList) <= 0:  # no market folder
             pass   
          else:
             for market in pqMarketList:
@@ -578,7 +567,7 @@ def getInfoFromPQ(parquetLocation):
                finalPqList[dateStr][marketStr] = dict()
 
                pqHrList = glob.glob(market+"/*_hr=*")
-               if len(pqHrList) <= 0:  # no date folder
+               if len(pqHrList) <= 0:  # no hr folder
                   pass
                else:
                   for hr in pqHrList:
@@ -676,7 +665,7 @@ def main(spark,inCSV,outPQ,outCSV):
 
          # read csv file(s) into dataframe then save into parquet
          #csvToParquet1(spark, inCSV, schema, outPQ) # old way - read 1 save 1
-         csvToParquet2(spark, inCSV, schema, outPQ, 20, numPartition=4) # new way - read 20 save 1
+         csvToParquet2(spark, inCSV, schema, outPQ, 20, numPartition=2) # new way - read 20 save 1
 
          # sample code
          #sampleCode(spark)
@@ -687,8 +676,42 @@ def main(spark,inCSV,outPQ,outCSV):
 
       # aggregation by hour and save to csv
       if outCSV is not "":
-         #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSV) # grab sql info from schema file itself
-         aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSV) # grab sql info from sql file
+
+         outCSV = outCSV.rstrip('/')
+         outCSVdir1, outCSVdir2 = os.path.split(outCSV)
+         outCSVTmp = outCSVdir1 + '/' + outCSVdir2 + '_' + time.strftime("%Y%m%d%H%M%S")
+         # create tmp folder
+         try:
+            os.system("rm -rf "+outCSVTmp) # remove prev output
+            os.mkdir(outCSVTmp)
+         except Exception as e:
+            util.logMessage("failed to create folder '%s'!\n%s" % (outCSVTmp,e))
+            return 0
+         except:
+            util.logMessage("failed to create folder '%s'!" % outCSVTmp)
+            return 0
+
+         # run aggregation
+         #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from schema file itself
+         aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from sql file
+         
+         # zip to file
+         outCSVTgz = outCSVdir2+'.tgz'
+         try:
+            util.logMessage('zipping files: cd %s && tar -cvzf %s *.csv' % (outCSVTmp, outCSVTgz))
+            os.system("cd %s && tar -cvzf %s *.csv" % (outCSVTmp, outCSVTgz))
+            os.system("rm -rf "+outCSVdir1+'/'+outCSVTgz) # remove old output file
+            shutil.move(outCSVTmp+'/'+outCSVTgz, outCSVdir1+'/'+outCSVTgz)
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            util.logMessage('zipping files successful: %s' % outCSVdir1+'/'+outCSVTgz)
+         except Exception as e:
+            util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            return 0
+         except:
+            util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            return 0
 
 
 

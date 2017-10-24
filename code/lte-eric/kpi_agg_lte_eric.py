@@ -4,6 +4,7 @@
 import sys
 import os
 import glob # pathname
+import shutil # move file
 import time
 import uuid
 import json
@@ -35,10 +36,11 @@ curr_py_path = os.path.realpath(__file__) # current running file - abs path
 curr_py_dir, curr_py_filename = os.path.split(curr_py_path)  # current file and folder - abs path
 
 # argv[1] - process name
-# argv[2] - input file (csv)
-# argv[3] - schema file (json) (empty if not needed)
-# argv[4] - output parquet dir
-# argv[5] - process mode: 'client' or 'cluster'
+# argv[2] - input file (csv) e.g. "/mnt/nfs/test_results/eric/lte/set_*-*/set_001.txt"; if empty, skip to next stage
+# argv[3] - schema file (json) (empty if not needed) e.g. "lte_eric_schema.json"
+# argv[4] - output parquet dir e.g. "/mnt/nfs/test/westest_lte.pqz"
+# argv[5] - output csv e.g. "/mnt/nfs/test/westest_lte"; if empty, not creating export
+# argv[6] - process mode: 'client' or 'cluster'
 
 APP_NAME = "kpiAggrApp"
 # argv[1] - take app name from param
@@ -74,10 +76,10 @@ else:
 
 
 
-# argv[5] - process mode
+# argv[6] - process mode
 proc_mode = ''
-if len(sys.argv) > 5:
-   proc_mode = sys.argv[5]
+if len(sys.argv) > 6:
+   proc_mode = sys.argv[6]
 proc_mode = proc_mode.lower()
 if not proc_mode == 'cluster':
    proc_mode = 'client'
@@ -113,6 +115,29 @@ def sampleCode(spark):
 
 
 
+def jsonToSchema(jsonFile):
+
+   schema = None   
+
+   try:
+      with open(jsonFile) as json_data:
+         schemaJson = json.load(json_data)
+         #print [item for item in schemaJson]
+
+   except Exception as e:
+      util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
+      return None
+
+   except:
+      util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
+      return None
+
+
+   schema = StructType([StructField.fromJson(item) for item in schemaJson])
+   return schema
+
+
+
 def csvToDF(spark, csvFile, schema=None):
 
    try:
@@ -141,26 +166,6 @@ def csvToDF(spark, csvFile, schema=None):
       return None
 
 
-def jsonToSchema(jsonFile):
-
-   schema = None   
-
-   try:
-      with open(jsonFile) as json_data:
-         schemaJson = json.load(json_data)
-         #print [item for item in schemaJson]
-
-   except Exception as e:
-      util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
-      return None
-
-   except:
-      util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
-      return None
-
-
-   schema = StructType([StructField.fromJson(item) for item in schemaJson])
-   return schema
 
 
 # read each csv into df then export to parquet
@@ -226,20 +231,23 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
       else:
          util.logMessage("finish reading file: %s" % curr_file)
 
-      if filecount % loadFactor == 0:
-         if filecount is not 0: # not the first time, write/append to file
+         if filecount % loadFactor == 0:
+            if filecount is not 0: # not the first time, write/append to file
 
-            # write parquet
-            if firsttime:
-               writemode = 'overwrite'
-               firsttime = False
-            else:
-               writemode = 'append'
-            addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
+               # write parquet
+               if firsttime:
+                  writemode = 'overwrite'
+                  firsttime = False
+               else:
+                  writemode = 'append'
+               if maindf is not None:
+                  addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
+               else:
+                  util.logMessage("dataframe empty, no need to save to parquet")
 
-         maindf = df
-      else:
-         maindf = maindf.union(df)
+            maindf = df
+         else:
+            maindf = maindf.union(df)
 
       filecount += 1
       # end of for curr_file in sorted(inputCsvList):
@@ -250,7 +258,10 @@ def csvToParquet2(spark, inputCsv, schema, outputDir, loadFactor=10, numPartitio
       firsttime = False
    else:
       writemode = 'append'
-   addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
+   if maindf is not None:
+      addPkAndSaveParquet(maindf, writemode, outputDir, numPartition)
+   else:
+      util.logMessage("dataframe empty, no need to save to parquet")
 
 
    return 0
@@ -299,7 +310,8 @@ def addPkAndSaveParquet(df, writemode, outputDir, numPartition=None):
    util.logMessage("finish writing parquet file (%s): %s" % (writemode, outputDir))     
 
 
-def aggKPI1(spark, pq, jsonFile):
+
+def aggKPI1(spark, pq, jsonFile, csv):
 
    try:
       with open(jsonFile) as json_data:
@@ -331,18 +343,8 @@ def aggKPI1(spark, pq, jsonFile):
       else: # all else
          sqlStr += "(%s) AS %s, " % (item['agg'], item['name'])
 
-
-   util.logMessage("reading parquet: %s" % pq)
-   df = spark.read.parquet(pq)
-   util.logMessage("start aggregation process...")
-
-   df.createOrReplaceTempView('kpi')
-
-   # get uuid for MGR_RUN_ID
-   uuidstr = str(uuid.uuid4())
-
-   sqlStrFinal = "SELECT \
-'%s' AS MGR_RUN_ID, \
+   sqlStr2 = "SELECT \
+'unassigned' AS MGR_RUN_ID, \
 MIN(Region) AS Region, \
 MIN(Market) AS Market, \
 MIN(SubNetwork_2) AS SubNetwork_2, \
@@ -357,29 +359,81 @@ MeContext AS HL_Site, \
 'unassigned' AS HL_Area, \
 'unassigned' AS HL_Market \
 FROM kpi \
+[##where##] \
 /*GROUP BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_SectorLayer,HL_Cluster,HL_Area*/ \
-GROUP BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_DATE \
-ORDER BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD" % (uuidstr, sqlStr)
+GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD \
+/*ORDER BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD*/ " % (sqlStr)
 
-   #print sqlStrFinal
-   sqlDF = spark.sql(sqlStrFinal)
 
-   # output to csv file
-   #sqlDF.show(10, truncate=False)
-   #util.logMessage("count: %d" % sqlDF.count())
-   util.logMessage("save to csv....")
+   # from parquet dir get main info: datelist->marketlist->hrlist e.g. {"2016-11-21": {"NY": {"00": "path"}}}
+   infoPq = getInfoFromPQ(pq)
+   if len(infoPq.items()) <= 0: # safeguard
+      util.logMessage("Error! No data found from parquet file: %s" % pq)
+      return None
 
-   #csvDir, csvFile = os.path.split(pq)
-   #csvFile += '.csv'
-   csvLocation = pq + '.csv'
-   
-   sqlDF.coalesce(1).write.csv(csvLocation, 
-                               header=True, 
-                               mode='overwrite', 
-                               sep=',', 
-                               dateFormat='yyyy-MM-dd', 
-                               timestampFormat='yyyy-MM-dd HH:mm:ss')
-                               #timestampFormat='yyyy-MM-dd HH:mm:ss.SSS')
+   # read parquet
+   util.logMessage("reading parquet: %s" % pq)
+   df = spark.read.parquet(pq)
+   df.createOrReplaceTempView('kpi')
+   util.logMessage("start aggregation process...")
+
+
+   # get latest date for now
+   date,dateItem = sorted(infoPq.items(), reverse=True)[0] # only take the first time - lastest date
+
+   # create csv by market
+   for market,marketItem in dateItem.items():
+
+      #for hour,hourItem in marketItem.items(): # key2: hour; value: pathname
+      #   util.logMessage("creating csv for hr: %s" % hour)
+
+      util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
+
+      numMaxHr = len(marketItem.items()) # get num of hours to run csv
+      if numMaxHr > 24: # safeguard
+         numMaxHr = 24
+
+      # create hourly csv
+      for i in xrange(0,numMaxHr):
+
+         # get uuid for MGR_RUN_ID
+         uuidstr = str(uuid.uuid4())
+         # replace with real uuid
+         sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr)
+
+         # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
+         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+         #print sqlStrFinal
+         sqlDF = spark.sql(sqlStrFinal)
+
+         # save df to csv if not empty
+         if sqlDF.count() > 0:
+            saveCsv(sqlDF, csv + "_%02d.csv" % i)
+
+
+      # create daily csv
+      if numMaxHr > 0: # if there is any hr data, create daily data
+
+         # get uuid for MGR_RUN_ID
+         uuidstr = str(uuid.uuid4())
+         # replace with real uuid
+         sqlStrFinal = sqlStr2.replace("'unassigned' AS MGR_RUN_ID", "'%s' AS MGR_RUN_ID" % uuidstr)
+
+         # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
+         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+         # replace group by clause and hl_date col - to remove hl_date(hourly) group by
+         sqlStrFinal = sqlStrFinal.replace("HL_DATE AS", "MIN(from_unixtime(unix_timestamp(HL_DATE, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) AS")
+         sqlStrFinal = sqlStrFinal.replace("GROUP BY HL_DATE,", "GROUP BY ")
+
+         #print sqlStrFinal
+         sqlDF = spark.sql(sqlStrFinal)
+
+         # save df to csv if not empty
+         saveCsv(sqlDF, csv + ".csv")
 
 
    util.logMessage("finish aggregation process.")
@@ -387,14 +441,22 @@ ORDER BY pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD" % (uuidstr, sqlStr)
 
 
 
+def aggKPI2(spark, pq, jsonFile, csv):
 
-def aggKPI2(spark, pq, jsonFile):
+   sqlStrFinal = ''
+   sqlStr = ''
 
    try:
       with open(jsonFile) as json_data:
          sqlJson = json.load(json_data)
-         #sqlStrFinal = "SELECT " + sqlJson[0]['SELECT'] + " FROM kpi WHERE HL_DATE='2016-09-10 00:00:00' GROUP BY " + sqlJson[0]['GROUPBY']
-         sqlStrFinal = "SELECT " + sqlJson[0]['SELECT'] + " FROM kpi GROUP BY " + sqlJson[0]['GROUPBY']
+         for feature in sqlJson['features']:
+            if feature['name'] == 'lte_eric': # only looking for lte eric feature
+               sqlStr = "SELECT " + feature['sql'][0]['SELECT'] + " FROM kpi [##where##] GROUP BY " + feature['sql'][0]['GROUPBY']
+               break
+
+      if sqlStr == '':
+         util.logMessage("Error getting sql string from file: %s!" % jsonFile)
+         return None
 
    except Exception as e:
       util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
@@ -404,43 +466,158 @@ def aggKPI2(spark, pq, jsonFile):
       util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
       return None
 
+
+   # from parquet dir get main info: datelist->marketlist->hrlist e.g. {"2016-11-21": {"NY": {"00": "path"}}}
+   infoPq = getInfoFromPQ(pq)
+   if len(infoPq.items()) <= 0: # safeguard
+      util.logMessage("Error! No data found from parquet file: %s" % pq)
+      return None
+
+   # read parquet
    util.logMessage("reading parquet: %s" % pq)
    df = spark.read.parquet(pq)
+   df.createOrReplaceTempView('kpi')
    util.logMessage("start aggregation process...")
 
-   df.createOrReplaceTempView('kpi')
 
-   # get uuid for MGR_RUN_ID - only temporary - future will have this column
-   uuidstr = str(uuid.uuid4())
-   # replace with real uuid
-   sqlStrFinal = sqlStrFinal.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
+   # get latest date for now
+   date,dateItem = sorted(infoPq.items(), reverse=True)[0] # only take the first time - lastest date
 
-   #print sqlStrFinal
-   sqlDF = spark.sql(sqlStrFinal)
+   # create csv by market
+   for market,marketItem in dateItem.items():
 
-   # output to csv file
-   #sqlDF.show(10, truncate=False)
-   #util.logMessage("count: %d" % sqlDF.count())
-   util.logMessage("save to csv....")
+      #for hour,hourItem in marketItem.items():
+      #   util.logMessage("creating csv for hr: %s" % hour)
 
-   #csvDir, csvFile = os.path.split(pq)
-   #csvFile += '.csv'
-   csvLocation = pq + '.csv'
-   
-   sqlDF.coalesce(1).write.csv(csvLocation, 
-                               header=True, 
-                               mode='overwrite', 
-                               sep=',', 
-                               dateFormat='yyyy-MM-dd', 
-                               timestampFormat='yyyy-MM-dd HH:mm:ss')
-                               #timestampFormat='yyyy-MM-dd HH:mm:ss.SSS')
+      util.logMessage("creating csv for date: %s -- market: %s" % (date, market))
+
+      numMaxHr = len(marketItem.items()) # get num of hours to run csv
+      if numMaxHr > 24: # safeguard
+         numMaxHr = 24
+
+      # create hourly csv
+      for i in xrange(0,numMaxHr):
+
+         # get uuid for MGR_RUN_ID
+         uuidstr = str(uuid.uuid4())
+         # replace with real uuid
+         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
+
+         # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (date, market, i)
+         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+         #print sqlStrFinal
+         sqlDF = spark.sql(sqlStrFinal)
+
+         # save df to csv if not empty
+         if sqlDF.count() > 0:
+            saveCsv(sqlDF, csv + "_%02d.csv" % i)
+
+
+      # create daily csv
+      if numMaxHr > 0: # if there is any hr data, create daily data
+
+         # get uuid for MGR_RUN_ID
+         uuidstr = str(uuid.uuid4())
+         # replace with real uuid
+         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr)
+
+         # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (date, market)
+         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+         # replace group by clause and hl_date col - to remove hl_date(hourly) group by
+         sqlStrFinal = sqlStrFinal.replace("hl_date as", "MIN(from_unixtime(unix_timestamp(hl_date, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) as")
+         sqlStrFinal = sqlStrFinal.replace("GROUP BY hl_date,", "GROUP BY ")
+
+         #print sqlStrFinal
+         sqlDF = spark.sql(sqlStrFinal)
+
+         # save df to csv if not empty
+         saveCsv(sqlDF, csv + ".csv")
 
 
    util.logMessage("finish aggregation process.")
 
 
 
-def main(spark,filename,outfilename):
+
+
+def getInfoFromPQ(parquetLocation):
+
+   finalPqList = dict()
+   pqList = glob.glob(parquetLocation+"/*_date=*")
+   if len(pqList) <= 0:  # no date folder
+      return None
+   else:
+      for date in pqList:
+
+         dateStr = date.split("_date=")[1]
+         finalPqList[dateStr] = dict()
+      
+         pqMarketList = glob.glob(date+"/*_market=*")
+         if len(pqMarketList) <= 0:  # no market folder
+            pass   
+         else:
+            for market in pqMarketList:
+
+               marketStr = market.split("_market=")[1]
+               finalPqList[dateStr][marketStr] = dict()
+
+               pqHrList = glob.glob(market+"/*_hr=*")
+               if len(pqHrList) <= 0:  # no hr folder
+                  pass
+               else:
+                  for hr in pqHrList:
+
+                     hrStr = hr.split("_hr=")[1]
+                     finalPqList[dateStr][marketStr][hrStr] = hr
+
+   return finalPqList
+
+
+
+  
+
+
+
+
+
+def saveCsv(sqlDF, csv):
+
+   #sqlDF.show(10, truncate=False)
+   #util.logMessage("count: %d" % sqlDF.count())
+
+   # output to csv file
+   util.logMessage("save to csv: %s" % csv)
+
+   csvTmp = csv+"."+time.strftime("%Y%m%d%H%M%S")+".tmp" # temp folder
+   sqlDF.coalesce(1).write.csv(csvTmp,
+                               header=True,
+                               mode='overwrite',
+                               sep=',',
+                               dateFormat='yyyy-MM-dd',
+                               timestampFormat='yyyy-MM-dd HH:mm:ss')
+                               #timestampFormat='yyyy-MM-dd HH:mm:ss.SSS')
+
+   # rename
+   # check result file exist
+   outputCsvList = glob.glob(csvTmp+"/*.csv")
+   if len(outputCsvList) <= 0:  # no file
+      util.logMessage("no file to output: %s" % csv)
+      return None
+   # supposed only have 1 because of coalesce(1), but in case of more than one, it will just keep overwriting
+   for curr_file in sorted(outputCsvList):
+      os.system("rm -rf "+csv) # remove prev output
+      shutil.move(curr_file, csv)
+   os.system("rm -rf "+csvTmp) # remove temp output folder
+
+
+
+
+
+def main(spark,inCSV,outPQ,outCSV):
 
 
    try:
@@ -470,29 +647,73 @@ def main(spark,filename,outfilename):
       util.logMessage("process start...")
 
 
-      # get schema
-      schema = None # init
-      #schemaFile = "lte_eric_schema.json"
-      if schemaFile is not "":
-         #schema = jsonToSchema(SparkFiles.get(schemaFile)) # might need this one when running cluster mode
-         schema = jsonToSchema(curr_py_dir+'/'+schemaFile)
+      if inCSV is not "":
 
-      if schema is not None:
-         util.logMessage("acquired schema from file: %s" % schemaFile)
-      else:
-         util.logMessage("assumed no schema")
+         # get schema
+         schema = None # init
+         #schemaFile = "lte_eric_schema.json"
+         if schemaFile is not "":
+            #schema = jsonToSchema(SparkFiles.get(schemaFile)) # might need this one when running cluster mode
+            schema = jsonToSchema(curr_py_dir+'/'+schemaFile)
+
+         if schema is not None:
+            util.logMessage("acquired schema from file: %s" % schemaFile)
+         else:
+            util.logMessage("assumed no schema")
 
 
-      # read csv file(s) into dataframe then save into parquet
-      #csvToParquet1(spark, filename, schema, output_dir) # old way - read 1 save 1
-      csvToParquet2(spark, filename, schema, output_dir, 10, numPartition=4) # new way - read 20 save 1
+         # read csv file(s) into dataframe then save into parquet
+         #csvToParquet1(spark, inCSV, schema, outPQ) # old way - read 1 save 1
+         csvToParquet2(spark, inCSV, schema, outPQ, 10, numPartition=4) # new way - read 20 save 1
+         # note: 2 partition - 2G exec mem - 4 cores (2 exec) - 5 union - ok?
+         # note: 4 partition - 2G exec mem - 8 cores (4 exec) - 10 union - ok
+         
 
-      # sample code
-      #sampleCode(spark)
+         # sample code
+         #sampleCode(spark)
+
+      # end of if inCSV is not "":
+
+
 
       # aggregation by hour and save to csv
-      #aggKPI1(spark, output_dir, curr_py_dir+'/'+schemaFile) # grab sql info from schema file itself
-      aggKPI2(spark, output_dir, curr_py_dir+'/'+sqlFile) # grab sql info from sql file 
+      if outCSV is not "":
+
+         outCSV = outCSV.rstrip('/')
+         outCSVdir1, outCSVdir2 = os.path.split(outCSV)
+         outCSVTmp = outCSVdir1 + '/' + outCSVdir2 + '_' + time.strftime("%Y%m%d%H%M%S")
+         # create tmp folder
+         try:
+            os.system("rm -rf "+outCSVTmp) # remove prev output
+            os.mkdir(outCSVTmp)
+         except Exception as e:
+            util.logMessage("failed to create folder '%s'!\n%s" % (outCSVTmp,e))
+            return 0
+         except:
+            util.logMessage("failed to create folder '%s'!" % outCSVTmp)
+            return 0
+
+         # run aggregation
+         #aggKPI1(spark, outPQ, curr_py_dir+'/'+schemaFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from schema file itself
+         aggKPI2(spark, outPQ, curr_py_dir+'/'+sqlFile, outCSVTmp+'/'+outCSVdir2) # grab sql info from sql file
+         
+         # zip to file
+         outCSVTgz = outCSVdir2+'.tgz'
+         try:
+            util.logMessage('zipping files: cd %s && tar -cvzf %s *.csv' % (outCSVTmp, outCSVTgz))
+            os.system("cd %s && tar -cvzf %s *.csv" % (outCSVTmp, outCSVTgz))
+            os.system("rm -rf "+outCSVdir1+'/'+outCSVTgz) # remove old output file
+            shutil.move(outCSVTmp+'/'+outCSVTgz, outCSVdir1+'/'+outCSVTgz)
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            util.logMessage('zipping files successful: %s' % outCSVdir1+'/'+outCSVTgz)
+         except Exception as e:
+            util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            return 0
+         except:
+            util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+            os.system("rm -rf "+outCSVTmp) # remove temp output folder
+            return 0
 
 
 
@@ -501,15 +722,15 @@ def main(spark,filename,outfilename):
 
    except Exception as e:
 
-      #util.logMessage('Cleanup location \'%s\'' % output_dir)
-      #os.system("rm -rf \'%s\'" % output_dir) 
+      #util.logMessage('Cleanup location \'%s\'' % outPQ)
+      #os.system("rm -rf \'%s\'" % outPQ) 
       util.logMessage("Job: %s: Exception Error: %s!" % (APP_NAME, e))
       raise
 
    except:
 
-      #util.logMessage('Cleanup location \'%s\'' % output_dir)
-      #os.system("rm -rf \'%s\'" % output_dir) 
+      #util.logMessage('Cleanup location \'%s\'' % outPQ)
+      #os.system("rm -rf \'%s\'" % outPQ) 
       util.logMessage("Job: %s: Other Unknown Error!" % APP_NAME)
       raise # not the error we are looking for
 
@@ -524,14 +745,19 @@ def main(spark,filename,outfilename):
 
 
 
+
+
+
+
 if __name__ == "__main__":
 
-   if len(sys.argv) < 4:
+   if len(sys.argv) < 6:
       util.logMessage("Error: param incorrect.")
       sys.exit(2)
 
-   filename = sys.argv[2]
-   outfilename = sys.argv[4]
+   inCSV = sys.argv[2]
+   outPQ = output_dir
+   outCSV = sys.argv[5]
 
    # Configure Spark
    spark = SparkSession \
@@ -541,7 +767,7 @@ if __name__ == "__main__":
 
 
    # Execute Main functionality
-   ret = main(spark, filename, outfilename)
+   ret = main(spark, inCSV, outPQ, outCSV)
    if not ret == 0: 
       sys.exit(ret)
 
