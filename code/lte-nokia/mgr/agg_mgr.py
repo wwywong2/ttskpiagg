@@ -130,6 +130,24 @@ if 'exec_mem' not in optionJSON:
       optionJSON[u'exec_mem'] = "2g"
 if 'logfile' not in optionJSON:
    optionJSON[u'logfile'] = ""
+if 'uiStartPort' not in optionJSON:
+   optionJSON[u'uiStartPort'] = ""
+if 'uiEndPort' not in optionJSON:
+   optionJSON[u'uiEndPort'] = ""
+if optionJSON[u'uiStartPort'] == '' or optionJSON[u'uiEndPort'] == '':
+   # default range for stage 3 port choices
+   if optionJSON[u'tech'].lower() == 'lte' and optionJSON[u'vendor'].lower() == 'eric': # 2500 choices
+      optionJSON[u'uiStartPort'] = 40000
+      optionJSON[u'uiEndPort'] = 42499
+   elif optionJSON[u'tech'].lower() == 'umts' and optionJSON[u'vendor'].lower() == 'eric': # 2500 choices
+      optionJSON[u'uiStartPort'] = 42500
+      optionJSON[u'uiEndPort'] = 44999
+   elif optionJSON[u'tech'].lower() == 'lte' and optionJSON[u'vendor'].lower() == 'nokia': # 2500 choices
+      optionJSON[u'uiStartPort'] = 45000
+      optionJSON[u'uiEndPort'] = 47499
+   elif optionJSON[u'tech'].lower() == 'umts' and optionJSON[u'vendor'].lower() == 'nokia': # 2500 choices
+      optionJSON[u'uiStartPort'] = 47500
+      optionJSON[u'uiEndPort'] = 49999
 
 # init logger
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
@@ -585,6 +603,9 @@ def worker(seqfile, index):
 
 	util.logMessage("Task %s start..." % jobname)
 
+	# get rnadom port for web UI
+	port = util.getAvailablePortRand(optionJSON[u'uiStartPort'], optionJSON[u'uiEndPort']) # get random port
+
 	# create master string
 	if proc_mode == 'cluster': # assume the leading master that zk return is the one to be use for dispatcher
 		exec_str_master = "mesos://%s:%d" % (optionJSON[u'master'], optionJSON[u'dispatcherPort'])
@@ -594,10 +615,10 @@ def worker(seqfile, index):
 		else:
 			exec_str_master = "mesos://%s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort'])
 
-	exportOnly = False
-	if exportMode == 3:
-		exportOnly = True
-	port = getAvailablePort(index, exportOnly)
+	#exportOnly = False
+	#if exportMode == 3:
+	#	exportOnly = True
+	#port = getAvailablePort(index, exportOnly)
 
 	# create spark string
 	exec_str_spark = "/opt/spark/bin/spark-submit \

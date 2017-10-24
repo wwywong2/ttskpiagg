@@ -147,6 +147,24 @@ if 'exportDaily' not in optionJSON:
    optionJSON[u'exportDaily'] = "N"
 if 'exportWithinDay' not in optionJSON:
    optionJSON[u'exportWithinDay'] = "3"
+if 'uiStartPort' not in optionJSON:
+   optionJSON[u'uiStartPort'] = ""
+if 'uiEndPort' not in optionJSON:
+   optionJSON[u'uiEndPort'] = ""
+if optionJSON[u'uiStartPort'] == '' or optionJSON[u'uiEndPort'] == '':
+   # default range for stage 3 port choices
+   if optionJSON[u'tech'].lower() == 'lte' and optionJSON[u'vendor'].lower() == 'eric': # 2500 choices
+      optionJSON[u'uiStartPort'] = 40000
+      optionJSON[u'uiEndPort'] = 42499
+   elif optionJSON[u'tech'].lower() == 'umts' and optionJSON[u'vendor'].lower() == 'eric': # 2500 choices
+      optionJSON[u'uiStartPort'] = 42500
+      optionJSON[u'uiEndPort'] = 44999
+   elif optionJSON[u'tech'].lower() == 'lte' and optionJSON[u'vendor'].lower() == 'nokia': # 2500 choices
+      optionJSON[u'uiStartPort'] = 45000
+      optionJSON[u'uiEndPort'] = 47499
+   elif optionJSON[u'tech'].lower() == 'umts' and optionJSON[u'vendor'].lower() == 'nokia': # 2500 choices
+      optionJSON[u'uiStartPort'] = 47500
+      optionJSON[u'uiEndPort'] = 49999
 
 # init logger
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
@@ -583,6 +601,9 @@ def worker(seqfile):
 
 	util.logMessage("Task %s start..." % jobname)
 
+	# get rnadom port for web UI
+	port = util.getAvailablePortRand(optionJSON[u'uiStartPort'], optionJSON[u'uiEndPort']) # get random port
+
 	# create master string
 	if proc_mode == 'cluster': # assume the leading master that zk return is the one to be use for dispatcher
 		exec_str_master = "mesos://%s:%d" % (optionJSON[u'master'], optionJSON[u'dispatcherPort'])
@@ -594,11 +615,15 @@ def worker(seqfile):
 
 	# create spark string
 	exec_str_spark = "/opt/spark/bin/spark-submit \
+--conf spark.ui.port=%d \
+--conf 'spark.driver.extraJavaOptions=-XX:ParallelGCThreads=2' \
+--conf 'spark.executor.extraJavaOptions=-XX:ParallelGCThreads=2' \
 --master %s \
 --deploy-mode %s \
 --driver-memory %s \
 --executor-memory %s \
 --total-executor-cores %d" % (
+		port,
 		exec_str_master,
 		proc_mode,
 		optionJSON[u'drvr_mem'],

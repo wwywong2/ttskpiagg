@@ -3,6 +3,7 @@ import os, glob, uuid
 import sys, subprocess, json
 import socket
 import time # This is required to include time module
+import random
 
 import linecache # for getException()
 
@@ -588,4 +589,8 @@ def getInfoFromPQ(parquetLocation):
 
    return finalPqList
        
+def getAvailablePortRand(startport=4040, endport=4055):
+
+   port = random.randint(startport, endport) # inclusive random integer
+   return port
        
