@@ -762,10 +762,147 @@ def aggKPI2(spark, pq, jsonFile, workdir):
    util.logMessage("start aggregation process...")
 
 
-   # get latest date for now
-   date,dateItem = sorted(infoPq.items(), reverse=True)[0] # only take the first time - lastest date
+   exportCountdown = int(optionJSON[u'exportHr']) # export last n available hr (not neccessary last n hr; e.g. 12,14,20)
+   if exportCountdown < 1 or exportCountdown > 24: # safeguard - between 1-24
+      exportCountdown = 3
+
+   # gather export list (by market)
+   exportDict = {}
+   for date,dateItem in sorted(infoPq.items(), reverse=True):
+      for market,marketItem in dateItem.items():
+         if market not in exportDict:
+            exportDict[market] = [] # empty list
+         for hour,hourItem in sorted(marketItem.items(), reverse=True):
+            if len(exportDict[market]) < exportCountdown:
+               exportDict[market].append(date + '|' + hour)
+
+   # export csv according to list
+   for exportMarket,exportMarketItem in exportDict.items():
+
+      # get uuid for MGR_RUN_ID
+      uuidstr = str(uuid.uuid4())
+
+      # get market schema suffix
+      # old way - load df each time; new way - read once into rows into dict so reuse is fast
+      #suffix = dfCellLookup.filter(dfCellLookup.MARKET == "%s" % market).first().MARKET_SUFFIX
+      if exportMarket in dictMarketLookup:
+         suffix = dictMarketLookup[exportMarket]
+      else:
+         suffix = 'null' # safeguard - no schema with _null
+
+      # create hourly csv
+      uuidstr_last = '' # init
+
+      for exportDateHour in exportMarketItem:
+
+         exportDate = exportDateHour.split('|')[0]
+         exportHour = exportDateHour.split('|')[1]
+         #print exportMarket + ' - ' + exportDate + ' - ' + exportHour
+         util.logMessage("creating csv for date: %s -- market: %s -- hour: %s" % (exportDate, exportMarket, exportHour))
+
+         # append hr to run id
+         uuidstr_final = "%02d-%s" % (int(exportHour),uuidstr)
+         if uuidstr_last == '':
+            uuidstr_last = uuidstr_final
+
+         # replace with real uuid
+         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
+
+         # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' AND pk_hr = '%02d' " % (exportDate, exportMarket, int(exportHour))
+         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+         #print sqlStrFinal
+         sqlDF = spark.sql(sqlStrFinal)
+
+         # save df to csv if not empty
+         if sqlDF.count() > 0:
+
+            csv2 = "_%s_%s_%s_%s" % (
+					exportDate, suffix, exportMarket.replace(' ', '-'), uuidstr_final)
+         
+            # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+            #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
+            saveCsv(sqlDF, workdir + '/' + "%s%s.csv" % (csv1, csv2))
+
+            # zip to market file
+            # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+            #       workdir1 - /mnt/nfs/test/
+            #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
+            outCSVTgz = "%s%s.tgz" % (csv1, csv2)
+            try:
+               util.logMessage('zipping files: cd %s && tar -cvzf %s %s%s.csv' % (workdir, outCSVTgz, csv1, csv2))
+               os.system("cd %s && tar -cvzf %s %s%s.csv" % (workdir, outCSVTgz, csv1, csv2))
+               os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
+               shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
+               os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+               util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
+            except Exception as e:
+               util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+               os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+               return None
+            except:
+               util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+               os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+               return None
 
 
+      # create daily csv
+      if optionJSON[u'exportDaily'] == "Y" and len(exportMarketItem) > 0: # if there is any hr data, create daily data
+
+         exportDate = exportMarketItem[0].split('|')[0] # update export date to latest date of that market
+         util.logMessage("creating daily csv for date: %s -- market: %s" % (exportDate, exportMarket))
+
+         # append hr to run id (24 mean daily)
+         uuidstr_final = "24-%s" % (uuidstr)
+         # replace with real uuid
+         sqlStrFinal = sqlStr.replace("'unassigned' as MGR_RUN_ID", "'%s' as MGR_RUN_ID" % uuidstr_final)
+
+         # replace where clause
+         whereStr = "WHERE pk_date = '%s' AND pk_market = '%s' " % (exportDate, exportMarket)
+         sqlStrFinal = sqlStrFinal.replace("[##where##]", whereStr)
+
+         # replace group by clause and hl_date col - to remove hl_date(hourly) group by
+         sqlStrFinal = sqlStrFinal.replace("hl_date as", "MIN(from_unixtime(unix_timestamp(hl_date, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) as")
+         sqlStrFinal = sqlStrFinal.replace("PERIOD_START_TIME as", "MIN(from_unixtime(unix_timestamp(hl_date, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) as")
+         sqlStrFinal = sqlStrFinal.replace("GROUP BY hl_date,", "GROUP BY ")
+
+         #print sqlStrFinal
+         sqlDF = spark.sql(sqlStrFinal)
+
+         csv2 = "_%s_%s_%s_%s" % (
+				exportDate, suffix, exportMarket.replace(' ', '-'), uuidstr_final)
+
+         # save df to csv
+         # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+         #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND.csv
+         saveCsv(sqlDF, workdir + '/' + "%s%s.csv" % (csv1, csv2))
+
+         # zip to market file
+         # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+         #       workdir1 - /mnt/nfs/test/
+         #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
+
+         outCSVTgz = "%s%s.tgz" % (csv1, csv2)
+         try:
+            util.logMessage('zipping files: cd %s && tar -cvzf %s %s%s.csv' % (workdir, outCSVTgz, csv1, csv2))
+            os.system("cd %s && tar -cvzf %s %s%s.csv" % (workdir, outCSVTgz, csv1, csv2))
+            os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
+            shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
+            os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+            util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
+         except Exception as e:
+            util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+            os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+            return None
+         except:
+            util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+            os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+            return None
+
+
+
+   '''
    # create csv by market
    for market,marketItem in dateItem.items():
 
@@ -868,7 +1005,7 @@ def aggKPI2(spark, pq, jsonFile, workdir):
       
 
    # end of for market,marketItem in dateItem.items()
-
+   '''
 
    util.logMessage("finish aggregation process.")
 
