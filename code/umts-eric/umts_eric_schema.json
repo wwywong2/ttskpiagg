@@ -51,31 +51,36 @@
         "metadata": {}, 
         "type": "double", 
         "name": "PERIOD_DURATION", 
-        "nullable": true
+        "nullable": true,
+        "agg": "60"
     }, 
     {
         "metadata": {}, 
         "type": "string", 
         "name": "MeContext", 
-        "nullable": true
+        "nullable": true,
+        "agg": "MIN"
     }, 
     {
         "metadata": {}, 
         "type": "string", 
         "name": "UtranCell", 
-        "nullable": true
+        "nullable": true,
+        "agg": "UtranCell"
     }, 
     {
         "metadata": {}, 
         "type": "double", 
         "name": "pmAttNonBlindInterFreqHoCsSpeech12", 
-        "nullable": true
+        "nullable": true,
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 
         "type": "double", 
         "name": "pmCellDowntimeAuto", 
-        "nullable": true
+        "nullable": true,
+        "agg": "SUM"
     }, 
     {
         "metadata": {}, 
