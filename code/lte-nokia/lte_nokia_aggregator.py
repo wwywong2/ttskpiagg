@@ -198,38 +198,18 @@ def getPqStructure(pqfiletypedir, exportHr, previousdatehrs, logf):
                                 hrfdcnt += 1
  
     return datetimearr
-    
+
 def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, filetype, mktuidmap, jobsettingobj, logf = None):
 
-    df = None
-    tempview = 'nokiakpi_{}'.format(filetype)
-    sqlquery = sqlquery.replace('{view}', tempview)
-    util.logMessage('reading parquet : {}'.format(pqfiletypedir), logf)
-    
-    try:
-        df = spark.read.parquet(pqfiletypedir)
-        if df is None:
-            util.logMessage('empty df when read parquet: {}'.format(pqfiletypedir), logf)
-            return 1
-    except:
-        util.logMessage('read parquet failed: {}'.format(pqfiletypedir), logf)
-        util.logMessage(getException())
-        return 1
-
-    util.logMessage('finish read parquet : {}'.format(pqfiletypedir), logf)
-    
-    df = df.withColumn("hl_date", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
-    df = df.withColumn("hl_date_hour", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
-    df = df.withColumn("PERIOD_START_TIME", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
-    df.createOrReplaceTempView(tempview)
-        
-    # get data date time
+    # get parquet folder structure
     previousdatehrs = 3
     pqfd = getPqStructure(pqfiletypedir, int(jobsettingobj['exportHr']), previousdatehrs, logf)
     if len(pqfd) <= 0:
         spark.catalog.dropTempView(tempview)
         df = None
         return 1
+
+    util.logMessage('parquet data to export: {}'.format(pqfd), logf)
 
     ##################
     #
@@ -244,24 +224,32 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
     
     ret = 0
     finalret = 0
-    kpidf = None
     lastdate = ''
     cmarket = ''
-    marketchagne = False
+    marketchange = False
     datechange = False
     bcreatedailycsv = False
     numhrscreated = 0
     aggcsvfdname = os.path.basename(csvpath)
     uidstr = ''
+    tempview = ''
     for date in pqfd:
 
         aggcsvpath = os.path.join(csvpath, filetype)
         tmpmarket = date['pk_market']
 
+        # date change
+        tmpdate = date['pk_date']
+        if lastdate == '':
+            lastdate = tmpdate
+        else:
+            if lastdate != tmpdate:
+                datechange = True # start using previousdatehrs
+
         # market change
         if cmarket != tmpmarket:
             cmarket = tmpmarket
-            marketchagne = True
+            marketchange = True
             bcreatedailycsv = True
 
             # reset lastest date
@@ -275,17 +263,33 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
                     marketsuffix = mapitem['MARKET_SUFFIX']
                     break
         else:
-            marketchagne = False
+            marketchange = False
 
         util.logMessage('get market suffix: {}'.format(marketsuffix), logf)
 
-        # date change
-        tmpdate = date['pk_date']
-        if lastdate == '':
-            lastdate = tmpdate
-        else:
-            if lastdate != tmpdate:
-                datechange = True # start using previousdatehrs
+        if datechange or marketchange:
+            
+            # register new market file type view
+            tempview = 'nokiakpi'
+            
+            df = None
+            sqlquery = sqlquery.replace('{view}', tempview)
+            marketpqdir = os.path.join(pqfiletypedir, "pk_date={}".format(date['pk_date']), "pk_market={}".format(date['pk_market']))
+            util.logMessage('reading parquet : {}'.format(marketpqdir), logf)
+            try:
+                df = spark.read.parquet(marketpqdir)
+                if df is None:
+                    util.logMessage('empty df when read parquet: {}'.format(marketpqdir), logf)
+                    continue
+            except:
+                util.logMessage('read parquet failed: {}'.format(marketpqdir), logf)
+                util.logMessage(getException())
+                continue
+
+            df = df.withColumn("hl_date", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
+            df = df.withColumn("hl_date_hour", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
+            df = df.withColumn("PERIOD_START_TIME", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
+            df.createOrReplaceTempView(tempview)
 
         # market-uid map, same market will use same uid for all file types
         bfinduid = False
@@ -301,8 +305,7 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
         # create daily results
         if bcreatedailycsv and not bturnoffdailyagg:
             util.logMessage('{} - DAILY CSV: processing market: {} - date: {}'.format(filetype, date['pk_market'], date['pk_date']), logf)
-            sqlquerydaily = sqlquery.replace("{where}", \
-                "where pk_market = '{}' and pk_date = '{}'".format(date['pk_market'], date['pk_date']))
+            sqlquerydaily = sqlquery.replace("{where}", "")
             sqlquerydaily = sqlquerydaily.replace("'unassigned' as MGR_RUN_ID", "'24-{}' AS MGR_RUN_ID".format(uidstr))
             sqlquerydaily = sqlquerydaily.replace("hl_date as", "MIN(from_unixtime(unix_timestamp(HL_DATE, 'yyyy-MM-dd'), 'yyyy-MM-dd 00:00:00')) as")
             sqlquerydaily = sqlquerydaily.replace("GROUP BY hl_date,", "GROUP BY ")
@@ -322,15 +325,13 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
 
         if bcreatehourly:
             util.logMessage('{} - HOURLY CSV: processing market: {} - date: {} - hour: {}'.format(filetype, date['pk_market'], date['pk_date'], date['pk_hr']), logf)
-            sqlqueryhourly = sqlquery.replace("{where}", \
-" where pk_market = '{}' and pk_date = '{}' and pk_hr = '{}'".format(date['pk_market'], date['pk_date'], str(date['pk_hr'])))
+            sqlqueryhourly = sqlquery.replace("{where}", " where pk_hr = '{}'".format(str(date['pk_hr'])))
             sqlqueryhourly = sqlqueryhourly.replace("'unassigned' as MGR_RUN_ID", "'{}-{}' AS MGR_RUN_ID".format(str(date['pk_hr']).zfill(2), uidstr))
             finalcsvfilename = '{}_{}_{}_{}_{}_{}'\
                 .format(aggcsvfdname, date['pk_date'], marketsuffix.lower(), date['pk_market'].replace(" ", "-").upper(), str(date['pk_hr']).zfill(2), filetype.replace("_", "-"))
             finalret += genAggregatecsv(spark, sqlqueryhourly, aggcsvpath, finalcsvfilename, int(jobsettingobj['aggcsvcoalesce']), logf)
-
+            
     spark.catalog.dropTempView(tempview)
-    kpidf = None
     df = None
 
     return finalret
@@ -362,7 +363,7 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
         util.logMessage(getException())
         pass
     '''
-        
+
     util.logMessage('start kpi aggregation process ...', logf)
     util.logMessage('job setting {}'.format(jobsettingobj), logf)
     util.logMessage('reading sql json file: {}'.format(sqljsonfile), logf)
@@ -546,12 +547,12 @@ def packParserResultsNewMode(wfolderpath, archivepath, logf):
     else:
         util.logMessage('failed to archive input file', logf)
         util.logMessage('error: {}'.format(ret['msg']), logf)
-        
+
 def packParserResults(wfolderpath, archivepath, logf):
     wfolder = os.path.basename(wfolderpath)
     wfolderdir = os.path.dirname(wfolderpath)
     archivegzpath = os.path.join(archivepath, wfolder + ".tgz")
-    
+
     # remove unknow path
     unknownpath = os.path.join(wfolderpath, "unknown")
     if os.path.isdir(unknownpath):
@@ -579,12 +580,13 @@ def convertColumn(df, name, new_type):
 def readLookupParquet_mode3(spark, vendor, tech, celllookuppk, logf):
 
     marketsuffixmap = []
-    util.logMessage("reading lookup parquet: {}".format(celllookuppk), logf)
+    celllookuppkdeeperpath = os.path.join(celllookuppk, 'TECH={}'.format(tech.upper()), 'VENDOR={}'.format(vendor.upper()))
+    util.logMessage("reading lookup parquet: {}".format(celllookuppkdeeperpath), logf)
 
     tempview = '{}_{}_celllookup_temp'.format(tech, vendor)
     dfLookup = None
     try:
-        dfLookup = spark.read.parquet(celllookuppk)
+        dfLookup = spark.read.parquet(celllookuppkdeeperpath)
         dfLookup.createOrReplaceTempView(tempview)
     except:
         util.printTrace(logf)
@@ -595,7 +597,7 @@ def readLookupParquet_mode3(spark, vendor, tech, celllookuppk, logf):
             return dfLookup
 
     try:
-        sublookupquery = "select DISTINCT MARKET, MARKET_SUFFIX From {} where TECH = '{}' AND VENDOR = '{}'".format(tempview, tech, vendor)
+        sublookupquery = "select DISTINCT MARKET, MARKET_SUFFIX From {}".format(tempview)
         util.logMessage('lookup filter query: {}'.format(sublookupquery), logf)
         
         ret = spark.sql(sublookupquery).collect()
@@ -605,36 +607,25 @@ def readLookupParquet_mode3(spark, vendor, tech, celllookuppk, logf):
         util.printTrace(logf)
     finally:
         spark.catalog.dropTempView(tempview)
+        dfLookup = None
         return marketsuffixmap
-    
+
 def readLookupParquet(spark, vendor, tech, lookupview, celllookuppk, logf):
 
-    util.logMessage("reading lookup parquet: {}".format(celllookuppk), logf)
+    celllookuppkdeeperpath = os.path.join(celllookuppk, 'TECH={}'.format(tech.upper()), 'VENDOR={}'.format(vendor.upper()))
+    util.logMessage("reading lookup parquet: {}".format(celllookuppkdeeperpath), logf)
 
-    datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
-    tempview = '{}_{}_{}_{}'.format(tech, vendor, datetimearr[0], datetimearr[1])
     dfLookup = None
     try:
-        dfLookup = spark.read.parquet(celllookuppk)
-        dfLookup.createOrReplaceTempView(tempview)
-    except:
-        util.printTrace(logf)
-    finally:
-        if dfLookup is None:
-            spark.catalog.dropTempView(tempview)
-            util.logMessage('lookup data frame empty', logf)
-            return dfLookup
-
-    try:
-        sublookupquery = "select * From {} where TECH = '{}' AND VENDOR = '{}'".format(tempview, tech, vendor)
-        util.logMessage('lookup filter query: {}'.format(sublookupquery), logf)
-        
-        dfLookup = spark.sql(sublookupquery)
+        dfLookup = spark.read.parquet(celllookuppkdeeperpath)
         dfLookup.createOrReplaceTempView(lookupview)
     except:
         util.printTrace(logf)
     finally:
-        spark.catalog.dropTempView(tempview)
+        if dfLookup is None:
+            spark.catalog.dropTempView(lookupview)
+            util.logMessage('lookup data frame empty', logf)
+            
         return dfLookup
 
 def createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, loadfactor, logf):
@@ -669,7 +660,7 @@ def createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetp
     
         bhasparquet = False
         parquettype = fg['type']
-        parquettypepath = os.path.join(parquetpath, parquettype)
+        parquettypepath = os.path.join(parquetpath, 'pk_ft={}'.format(parquettype))
         if os.path.isdir(parquettypepath):
             bhasparquet = True
     
@@ -731,7 +722,7 @@ def saveParquetFile(spark, vendor, tech, df, mode, lookupview, parquettype, parq
 , IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster\
 , IFNULL(l.MARKET_SUFFIX,'unassigned') AS HL_Market_Suffix\
 , IFNULL(l.AREA,'unassigned') AS HL_Area \
-from {} k left join {} l on k.MO_DN2 = l.CELL_UID".format(parquettype, lookupview)
+from {} k left join {} l on UPPER(k.OSS) = UPPER(l.OSS) AND k.MO_DN2 = l.CELL_UID".format(parquettype, lookupview)
     
     try:
         util.logMessage('[{}] - lookup query: {}'.format(parquettype, lookupquery), logf)
@@ -866,6 +857,7 @@ def main():
         util.logMessage("incorrect arguments - no function id")
         return 1
 
+    # function id 1 will not use anymore
     if funcid == '1':
         '''
         spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
@@ -908,7 +900,7 @@ def main():
             jobsettingobj['exportHr'] = '3'
         if 'exportDaily' not in jobsettingobj:
             jobsettingobj['exportDaily'] = 'N'
-        
+
         stagingpath = os.path.join(os.path.dirname(parserresultspath), "..")
         wfolder = os.path.basename(os.path.dirname(parserresultspath))
         wfolderpath = os.path.dirname(parserresultspath)
@@ -955,7 +947,7 @@ def main():
 
         schemapath = os.path.join(root, 'schema')
         sqljsonfile = os.path.join(root, 'sql', '{}_{}_sql.json'.format(tech.lower(), vendor.lower()))
-            
+
         # group file type
         filetypegroup = groupFileType(parserresultspath, schemapath, wfolderpath, logf)
         if filetypegroup['filecount'] <= 0 or len(filetypegroup['groups']) <= 0:
@@ -973,7 +965,7 @@ def main():
             .getOrCreate()
 
         ret = createParquetFile(spark, vendor, tech, filetypegroup, celllookuppk, parquetpath, int(jobsettingobj['loadFactor']), logf)
- 
+
         # archive parser output
         util.logMessage("packing parser results ...", logf)
         packParserResults(wfolderpath, archivepath, logf)
@@ -1017,7 +1009,7 @@ def main():
             pass
         if 'loadFactor' not in jobsettingobj:
             jobsettingobj['loadFactor'] = '10'
-        
+
         stagingpath = os.path.join(os.path.dirname(parserresultspath), "..")
         wfolder = os.path.basename(os.path.dirname(parserresultspath))
         wfolderpath = os.path.dirname(parserresultspath)
@@ -1128,7 +1120,7 @@ def main():
             jobsettingobj['exportHr'] = '3'
         if 'exportDaily' not in jobsettingobj:
             jobsettingobj['exportDaily'] = 'N'
-            
+
         datetimearr = datetime.datetime.now().strftime('%Y%m%d %H%M%S%f').split(' ')
         appName = 'stg3_ttskpiagg_{}_{}_{}_{}_{}_3'.format(vendor.upper(), tech.upper(), datetimearr[0], datetimearr[1], carr.upper())
         
