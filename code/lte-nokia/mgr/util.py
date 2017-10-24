@@ -4,6 +4,7 @@ import sys, subprocess, json
 import socket
 import time # This is required to include time module
 import random
+import shutil
 
 import linecache # for getException()
 
@@ -593,4 +594,28 @@ def getAvailablePortRand(startport=4040, endport=4055):
 
    port = random.randint(startport, endport) # inclusive random integer
    return port
-       
+
+def combineFile(fileList, outputFile): # warning, input files will be removed once finished
+
+   newfile = outputFile + '.tmp'
+
+   for file in sorted(fileList, reverse=True):
+      if not os.path.exists(newfile): # copy file
+         if os.path.exists(file):
+            shutil.copy(file, newfile)
+      else: # append
+         if os.path.exists(file):
+            linenum = 0
+            # combine file (append w/ skip first line)
+            outfile = open(newfile, 'ab')
+            with open(file, 'rb') as infile:
+               for line in infile:
+                  linenum += 1
+                  if linenum > 1: # skip first line
+                     outfile.write(line)
+               outfile.close()
+
+   for file in sorted(fileList, reverse=True):
+      os.system("rm -rf '%s'" % file) # remove old output file
+   shutil.move(newfile, outputFile)
+

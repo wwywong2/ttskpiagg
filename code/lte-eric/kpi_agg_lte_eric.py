@@ -689,15 +689,15 @@ GROUP BY HL_DATE,pk_date,pk_market,pk_hr,MeContext,EUtranCellFDD,HL_Market,HL_Cl
          os.system("cd %s && tar -cvzf %s *.csv" % (workdir, outCSVTgz))
          os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
          shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
-         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         os.system("rm -rf '%s/%s'" % (workdir, '*.csv')) # remove temp output files
          util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
       except Exception as e:
          util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
-         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         os.system("rm -rf '%s/%s'" % (workdir, '*.csv')) # remove temp output files
          return None
       except:
          util.logMessage("failed to zip file '%s'!" % outCSVTgz)
-         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         os.system("rm -rf '%s/%s'" % (workdir, '*.csv')) # remove temp output files
          return None
       
 
@@ -791,6 +791,7 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          suffix = 'null' # safeguard - no schema with _null
 
       # create hourly csv
+      exportFileList = {} # dict of [date][hr_filename]
       for exportDateHour in exportMarketItem:
 
          exportDate = exportDateHour.split('|')[0]
@@ -819,28 +820,48 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          
             # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
             #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_09.csv
-            saveCsv(sqlDF, workdir + '/' + "%s%s.csv" % (csv1, csv2))
+            currOutCSV = "%s%s.csv" % (csv1, csv2)
+            saveCsv(sqlDF, workdir + '/' + currOutCSV)
+            if exportDate not in exportFileList:
+               exportFileList[exportDate] = [] # new list of file for that date
+            exportFileList[exportDate].append(workdir + '/' + currOutCSV) # save to list for later join/zip
 
-            # zip to market file
-            # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
-            #       workdir1 - /mnt/nfs/test/
-            #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
-            outCSVTgz = "%s%s-%s.tgz" % (csv1, csv2, uuidstr)
-            try:
-               util.logMessage('zipping files: cd %s && tar -cvzf %s %s%s.csv' % (workdir, outCSVTgz, csv1, csv2))
-               os.system("cd %s && tar -cvzf %s %s%s.csv" % (workdir, outCSVTgz, csv1, csv2))
-               os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
-               shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
-               os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
-               util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
-            except Exception as e:
-               util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
-               os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
-               return None
-            except:
-               util.logMessage("failed to zip file '%s'!" % outCSVTgz)
-               os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
-               return None
+
+      # join csv by export date and zip to market file
+      for exportDate,exportDateItem in sorted(exportFileList.items(), reverse=True):
+
+         if len(exportDateItem) <= 0: # safeguard
+            continue
+      
+         # exportDateItem[0] should have the filename we want to finally zip
+         exportFileFinal = exportDateItem[0]
+         if len(exportDateItem) > 1: # more than one file, combine into one
+            util.combineFile(exportDateItem, exportFileFinal)
+         
+         # zip to market file
+         # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
+         #       workdir1 - /mnt/nfs/test/
+         #       currOutCSV - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22.csv
+         #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
+         #       exportFileFinal - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22.csv
+         workdir_tmp, currOutCSV = os.path.split(exportFileFinal)
+         outCSVTgz = "%s-%s.tgz" % (currOutCSV.split('.csv')[0], uuidstr)
+         try:
+            util.logMessage('zipping files: cd %s && tar -cvzf %s %s' % (workdir, outCSVTgz, currOutCSV))
+            os.system("cd %s && tar -cvzf %s %s" % (workdir, outCSVTgz, currOutCSV))
+            os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
+            shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
+            os.system("rm -rf '%s/%s'" % (workdir, currOutCSV)) # remove temp output files
+            util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
+         except Exception as e:
+            util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
+            os.system("rm -rf '%s/%s'" % (workdir, currOutCSV)) # remove temp output files
+            return None
+         except:
+            util.logMessage("failed to zip file '%s'!" % outCSVTgz)
+            os.system("rm -rf '%s/%s'" % (workdir, currOutCSV)) # remove temp output files
+            return None
+         
 
 
       # create daily csv
@@ -872,30 +893,30 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          # save df to csv
          # e.g.  /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
          #       ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND.csv
-         saveCsv(sqlDF, workdir + '/' + "%s%s.csv" % (csv1, csv2))
+         currOutCSV = "%s%s.csv" % (csv1, csv2)
+         saveCsv(sqlDF, workdir + '/' + currOutCSV)
 
          # zip to market file
          # e.g.  workdir - /mnt/nfs/test/ttskpiagg_ERICSSON_LTE_TMO_20161020123347123/
          #       workdir1 - /mnt/nfs/test/
+         #       currOutCSV - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22.csv
          #       outCSVTgz - ttskpiagg_ERICSSON_LTE_20161020_123347123_TMO_2016-09-10_nyc_LONG-ISLAND_22-8c6502a4-6b60-44fc-a097-ceb9c4ca1ff1.tgz
-
          outCSVTgz = "%s%s-%s.tgz" % (csv1, csv2, uuidstr)
          try:
-            util.logMessage('zipping files: cd %s && tar -cvzf %s %s%s.csv' % (workdir, outCSVTgz, csv1, csv2))
-            os.system("cd %s && tar -cvzf %s %s%s.csv" % (workdir, outCSVTgz, csv1, csv2))
+            util.logMessage('zipping files: cd %s && tar -cvzf %s %s' % (workdir, outCSVTgz, currOutCSV))
+            os.system("cd %s && tar -cvzf %s %s" % (workdir, outCSVTgz, currOutCSV))
             os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
             shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
-            os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+            os.system("rm -rf '%s/%s'" % (workdir, currOutCSV)) # remove temp output files
             util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
          except Exception as e:
             util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
-            os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+            os.system("rm -rf '%s/%s'" % (workdir, currOutCSV)) # remove temp output files
             return None
          except:
             util.logMessage("failed to zip file '%s'!" % outCSVTgz)
-            os.system("rm -rf '%s'/%s%s.csv" % (workdir, csv1, csv2)) # remove temp output files
+            os.system("rm -rf '%s/%s'" % (workdir, currOutCSV)) # remove temp output files
             return None
-
 
 
    '''
@@ -988,15 +1009,15 @@ def aggKPI2(spark, pq, jsonFile, workdir):
          os.system("cd %s && tar -cvzf %s *.csv" % (workdir, outCSVTgz))
          os.system("rm -rf '%s'" % (workdir1+'/'+outCSVTgz)) # remove old output file
          shutil.move(workdir+'/'+outCSVTgz, workdir1+'/'+outCSVTgz)
-         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         os.system("rm -rf '%s/%s'" % (workdir, '*.csv')) # remove temp output files
          util.logMessage('zipping files successful: %s' % workdir1+'/'+outCSVTgz)
       except Exception as e:
          util.logMessage("failed to zip file '%s'!\n%s" % (outCSVTgz,e))
-         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         os.system("rm -rf '%s/%s'" % (workdir, '*.csv')) # remove temp output files
          return None
       except:
          util.logMessage("failed to zip file '%s'!" % outCSVTgz)
-         os.system("rm -rf '%s'/%s" % (workdir, '*.csv')) # remove temp output files
+         os.system("rm -rf '%s/%s'" % (workdir, '*.csv')) # remove temp output files
          return None
       
 
