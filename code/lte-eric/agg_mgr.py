@@ -172,16 +172,26 @@ if optionJSON[u'uiStartPort'] == '' or optionJSON[u'uiEndPort'] == '':
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
 
 
+# get mode here
+if sys.argv[1] == '' and sys.argv[2] == '': # safeguard - input and output dir cannot both be empty
+   util.logMessage("Input and output dir cannot both be empty. Process terminated.")
+   sys.exit(2)
+if sys.argv[1] == '': # input dir
+   exportMode = 3 # csv only
+elif sys.argv[2] == '': # output dir
+   exportMode = 2 # pq only
+
+
 # create lock
 if optionJSON[u'oss'] == "":
-   lockpath = '/tmp/agg_mgr_%s_%s.lock' % (optionJSON[u'vendor'], optionJSON[u'tech'])
+   lockpath = '/tmp/agg_mgr_%s_%s_%d.lock' % (optionJSON[u'vendor'], optionJSON[u'tech'], exportMode)
 else:
-   lockpath = '/tmp/%s_agg_mgr_%s_%s.lock' % (optionJSON[u'oss'], optionJSON[u'vendor'], optionJSON[u'tech'])
+   lockpath = '/tmp/%s_agg_mgr_%s_%s_%d.lock' % (optionJSON[u'oss'], optionJSON[u'vendor'], optionJSON[u'tech'], exportMode)
 try:
    os.makedirs(lockpath)
    util.logMessage("Created lock %s" % lockpath)
 except OSError:
-   if sys.argv[1] == '': # export only, ignore lock
+   if exportMode == 3: # export only, ignore lock
       util.logMessage("Found existing lock %s, but continue process (export only)." % lockpath)
    else: # input dir not empty, save pq, need lock
       util.logMessage("Found existing lock %s, quit process." % lockpath)

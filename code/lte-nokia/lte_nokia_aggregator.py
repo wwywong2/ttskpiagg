@@ -316,9 +316,10 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
                 util.logMessage(getException())
                 continue
 
-            df = df.withColumn("hl_date", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
-            df = df.withColumn("hl_date_hour", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
-            df = df.withColumn("PERIOD_START_TIME", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
+            #df = df.withColumn("hl_date", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
+            df = df.withColumn("HL_Date", df['PERIOD_START_TIME'])
+            df = df.withColumn("HL_Date_Hour", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
+            #df = df.withColumn("PERIOD_START_TIME", pysparksqlfunc.date_format(df['PERIOD_START_TIME'], 'yyyy-MM-dd HH:00:00'))
             df.createOrReplaceTempView(tempview)
 
         # market-uid map, same market will use same uid for all file types
@@ -347,12 +348,13 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
 
         # create hr results
         bcreatehourly = True
-        if datechange: # not latest, need to create last previousdatehrs(3) hours csv
+        '''
+        if datechange:
             if numhrscreated < previousdatehrs:
                 numhrscreated += 1
             else:
                 bcreatehourly = False
-
+        '''
         if bcreatehourly:
             util.logMessage('{} - HOURLY CSV: processing market: {} - date: {} - hour: {}'.format(filetype, date['pk_market'], date['pk_date'], date['pk_hr']), logf)
             sqlqueryhourly = sqlquery.replace("{where}", " where pk_hr = '{}'".format(str(date['pk_hr'])))
@@ -1085,11 +1087,11 @@ def main():
         '''
         spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
         --driver-memory 512M --executor-memory 916M --total-executor-cores 8
-        /home/imnosrf/ttskpiagg/code/umts-nokia/umts_nokia_aggregator.py 2 NOKIA UMTS TMO
-        /mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput
-        "/mnt/nfsi01/ttskpiraw/umts-nokia/aggregatorInput/staging/ttskpiraw_NOKIA_LTE_20170724_124401188_TMO/ttskpiraw_NOKIA_LTE_20170724_124401188_TMO_lte_cell_avail/*.txt"
+        /home/imnosrf/ttskpiagg/code/lte-nokia/lte_nokia_aggregator.py 2 NOKIA LTE TMO
+        /mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput
+        "/mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput/staging/ttskpiraw_NOKIA_LTE_20170724_124401188_TMO/ttskpiraw_NOKIA_LTE_20170724_124401188_TMO_lte_cell_avail/*.txt"
         /mnt/nfsi/ttskpicellex/CellExFromSinfo.pqz
-        /mnt/nfsi01/ttskpiraw/umts-nokia/parquet
+        /mnt/nfsi01/ttskpiraw/lte-nokia/parquet
         '{"loadFactor":10}'
         '''
         if argvs < 10:

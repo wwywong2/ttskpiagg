@@ -5,6 +5,7 @@ import time
 import datetime
 import uuid
 import json
+import math
 import glob
 import shutil # move file
 
@@ -66,6 +67,7 @@ exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 #              "logfile" : "", - empty = no log file
 #              "uiStartPort" : "", - empty = default start port range for random func
 #              "uiEndPort" : "", - empty = default end port range for random func
+#              "numFileTypePerTask" : 1,
 #              "exportType" : "" - empty = export all filetype
 #             }'
 ##           "":null --> None in python (no coalesce)
@@ -149,6 +151,8 @@ if optionJSON[u'uiStartPort'] == '' or optionJSON[u'uiEndPort'] == '':
    elif optionJSON[u'tech'].lower() == 'umts' and optionJSON[u'vendor'].lower() == 'nokia': # 2500 choices
       optionJSON[u'uiStartPort'] = 47500
       optionJSON[u'uiEndPort'] = 49999
+if 'numFileTypePerTask' not in optionJSON:
+   optionJSON[u'numFileTypePerTask'] = 1
 if 'exportType' not in optionJSON:
    optionJSON[u'exportType'] = ""
 
@@ -156,20 +160,26 @@ if 'exportType' not in optionJSON:
 util.loggerSetup(__name__, optionJSON[u'logfile'], logging.DEBUG)
 
 
-
-
+# get mode here
+if sys.argv[1] == '' and sys.argv[2] == '': # safeguard - input and output dir cannot both be empty
+   util.logMessage("Input and output dir cannot both be empty. Process terminated.")
+   sys.exit(2)
+if sys.argv[1] == '': # input dir
+   exportMode = 3 # csv only
+elif sys.argv[2] == '': # output dir
+   exportMode = 2 # pq only
 
 
 # create lock
 if optionJSON[u'oss'] == "":
-   lockpath = '/tmp/agg_mgr_%s_%s.lock' % (optionJSON[u'vendor'], optionJSON[u'tech'])
+   lockpath = '/tmp/agg_mgr_%s_%s_%d.lock' % (optionJSON[u'vendor'], optionJSON[u'tech'], exportMode)
 else:
-   lockpath = '/tmp/%s_agg_mgr_%s_%s.lock' % (optionJSON[u'oss'], optionJSON[u'vendor'], optionJSON[u'tech'])
+   lockpath = '/tmp/%s_agg_mgr_%s_%s_%d.lock' % (optionJSON[u'oss'], optionJSON[u'vendor'], optionJSON[u'tech'], exportMode)
 try:
    os.makedirs(lockpath)
    util.logMessage("Created lock %s" % lockpath)
 except OSError:
-   if sys.argv[1] == '': # export only, ignore lock
+   if exportMode == 3: # export only, ignore lock
       util.logMessage("Found existing lock %s, but continue process (export only)." % lockpath)
    else: # input dir not empty, save pq, need lock
       util.logMessage("Found existing lock %s, quit process." % lockpath)
@@ -578,6 +588,7 @@ def worker(seqfile):
 
 	global prev_jobname
 	seqfile_dir, seqfile_file = os.path.split(seqfile)
+	seqfile_dir, seqfile_file = os.path.split(seqfile_dir) # parse again for the main folder (2nd lvl)
 	if optionJSON[u'oss'] == "":
 		job_oss = ''
 	else:
@@ -831,14 +842,18 @@ def main(input_dir, optionJSON):
 
 
    # move files into sub folders by file type
-   filetypeArr = []
-   filetypeDirArr = []  
+   filetypeArr = {}
+   filetypeSetArr = {}
+   filetypeDirArr = []
    stagingFileList = glob.glob(staging_dir_sub+"/*.txt")
    if len(stagingFileList) > 0:  # safeguard
       for curr_file in stagingFileList:
          curr_stg_dir, curr_data_filename = os.path.split(curr_file)
          filenameArr = curr_data_filename.split('.')[0].split('_')
          filetype = '_'.join(filenameArr[6:])
+
+         '''
+         ##### old code - create subfolder by filetype #####
          filetypeDir = staging_dir_sub + '/' + filetype
 
          if filetype not in filetypeArr: # create new dir
@@ -861,6 +876,57 @@ def main(input_dir, optionJSON):
             util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
          except:
             util.logMessage("Unexpected error")
+         ##### old code - create subfolder by filetype #####
+         '''
+
+         if filetype not in filetypeArr: # create new list
+            filetypeArr[filetype] = []
+         filetypeArr[filetype].append(curr_file)
+
+
+      numSet = int(math.ceil(len(filetypeArr) / float(optionJSON[u'numFileTypePerTask'])))
+      setCntr = 1 # init
+      filetypeCntr = 0 # init
+      # reorganize set by grouping together multiple filetypes
+      for filetype,filetypeItem in sorted(filetypeArr.items()):
+
+         if filetypeCntr < optionJSON[u'numFileTypePerTask']:
+            filetypeCntr += 1
+         else:
+            filetypeCntr = 1 # reset
+            setCntr += 1          
+
+         # create set index and new array if not exist
+         setIdx = "%d_%d" % (setCntr, numSet)
+         if setIdx not in filetypeSetArr:
+            filetypeSetArr[setIdx] = []
+
+         # insert filename into set array
+         for file in filetypeItem:
+            filetypeSetArr[setIdx].append(file)
+
+      # move file to final set dir
+      for file_set,fileArr in sorted(filetypeSetArr.items()):
+
+         filetypeDir  = staging_dir_sub + '/' + file_set
+         if not os.path.isdir(filetypeDir): # create if not exist
+            try:
+               os.mkdir(filetypeDir)
+               filetypeDirArr.append(filetypeDir)
+            except:
+               util.logMessage("Failed to create folder \"%s\"!" % filetypeDir)
+               util.logMessage("Process terminated.")
+               util.endProcess(lockpath, 2)
+
+         for curr_file in fileArr:
+            # move file by filetype
+            try:
+               shutil.move(curr_file, filetypeDir)
+            except shutil.Error as e:
+               util.logMessage("Error: failed to move file %s\n%s" % (curr_file, e))
+            except:
+               util.logMessage("Unexpected error")
+          
 
 
    # going to each file type folder in the staging area and submit process
