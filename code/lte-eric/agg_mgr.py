@@ -447,7 +447,7 @@ def getCurrJobs_mesos(statusJSON):
 		jobsArr = statusJSON['frameworks']
 		for job in jobsArr:
 			if (job['name'].upper().find('MARATHON') == -1 and 
-				job['name'].upper().find('CHRONOS-') == -1 and
+				job['name'].upper().find('CHRONOS') == -1 and
 				job['name'].upper().find('SPARK CLUSTER') == -1):
 				numJobs += 1
 				# further check for waiting task

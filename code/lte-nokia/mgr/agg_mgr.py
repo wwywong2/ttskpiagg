@@ -427,7 +427,7 @@ def getCurrJobs_mesos(statusJSON):
 		jobsArr = statusJSON['frameworks']
 		for job in jobsArr:
 			if (job['name'].upper().find('MARATHON') == -1 and 
-				job['name'].upper().find('CHRONOS-') == -1 and
+				job['name'].upper().find('CHRONOS') == -1 and
 				job['name'].upper().find('SPARK CLUSTER') == -1):
 				numJobs += 1
 				# further check for waiting task
@@ -611,7 +611,8 @@ def worker(seqfile):
 
 	global prev_jobname
 	seqfile_dir, seqfile_file = os.path.split(seqfile)
-	seqfile_dir, seqfile_file = os.path.split(seqfile_dir) # parse again for the main folder (2nd lvl)
+	if exportMode == 2: # pq only
+		seqfile_dir, seqfile_file = os.path.split(seqfile_dir) # parse again for the main folder (2nd lvl)
 	if optionJSON[u'oss'] == "":
 		job_oss = ''
 	else:
@@ -797,7 +798,26 @@ def main(input_dir, optionJSON):
          util.logMessage("Error! No data found from parquet file: %s" % output_parq)
          return 0
 
-      for filetype,filetypeItem in sorted(infoPq.items()): # on each file type, spawn new task
+      filetypeExportArr = []
+      filetypeCtr = 0
+      filetypeStr = ''
+      for filetype,filetypeItem in sorted(infoPq.items()): # on each file type, accum into file types list based on # filetype per task
+         if filetypeCtr < int(optionJSON[u'numFileTypePerTask']):
+            filetypeCtr += 1
+         else:
+            filetypeCtr = 1
+            filetypeExportArr.append(filetypeStr)
+
+         if filetypeCtr == 1:
+            filetypeStr = filetype
+         else:
+            filetypeStr += '|' + filetype
+
+      # leftover filetype
+      filetypeExportArr.append(filetypeStr)
+
+
+      for filetypeStr in filetypeExportArr: # on each file types list, spawn new task
 
          # submit one process to work on the whole folder (of multiple txt file)
          try:
@@ -809,7 +829,7 @@ def main(input_dir, optionJSON):
                bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
 
             # process file
-            optionJSON[u'exportType'] = filetype # set new filetype
+            optionJSON[u'exportType'] = filetypeStr # set new filetypes (| delimited list)
             worker(staging_dir_sub)
 
             # wait some sec before next task

@@ -388,11 +388,13 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
         util.logMessage('failed to read lookup parquet: {}'.format(celllookuppk), logf)
         return 1
 
-    exportType = ''
+    exportlist = []
     if 'exportType' in jobsettingobj:
         if jobsettingobj['exportType'] is not None and jobsettingobj['exportType'] != '':
-            exportType = jobsettingobj['exportType']
-            util.logMessage('export assigned measurement types: {}'.format(exportType), logf)
+            exportlist = jobsettingobj['exportType'].split('|')
+            util.logMessage('export assigned measurement types: {}'.format(exportlist), logf)
+        else:
+            util.logMessage('export all measurement types !!', logf) 
     else:
         util.logMessage('export all measurement types !!', logf)
 
@@ -434,10 +436,18 @@ def runKpiAggregation(spark, vendor, tech, carr, sqljsonfile, parquetpath, aggre
         if filetype.find("pk_ft=") >=0:
             filetype = filetype.replace("pk_ft=", "")
 
-        if exportType != '':
-            if exportType != filetype:
-                util.logMessage('file type: {} did not match assigned type: {}'.format(filetype, exportType), logf)
-                continue
+        # need to check list if exportlist is provided
+        bfindtype = False
+        if len(exportlist) != 0:
+            for exporttype in exportlist:
+                if exporttype == filetype:
+                    bfindtype = True
+                    break
+        else:
+            bfindtype = True
+
+        if not bfindtype:
+            continue
 
         util.logMessage('============== file type: {} =============='.format(filetype), logf)
         pqfiletypedir = os.path.join(parquetpath, filetypedir)
@@ -1211,9 +1221,9 @@ def main():
 
     elif funcid == '3':
         '''
-        spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
+        spark-submit --master mesos://zk://10.26.156.22:2181,10.26.156.23:2181,10.26.156.24:2181/mesos
          --driver-memory 512M --executor-memory 916M --total-executor-cores 8
-         /home/imnosrf/ttskpiraw/code/umts-nokia/umts_nokia_aggregator.py 3 NOKIA UMTS TMO
+         /home/imnosrf/ttskpiagg/code/umts-nokia/umts_nokia_aggregator.py 3 NOKIA UMTS TMO
          /mnt/nfsi01/ttskpiraw/umts-nokia/parquet
          /mnt/nfsi01/ttskpiraw/umts-nokia/dbloaderInput
          /mnt/nfsi01/ttskpicellex/CellExFromSinfo.pqz
