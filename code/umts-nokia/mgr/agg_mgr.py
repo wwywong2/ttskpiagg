@@ -595,6 +595,9 @@ def worker(seqfile):
 	# create spark string
 	exec_str_spark = "/opt/spark/bin/spark-submit \
 --conf spark.ui.port=%d \
+--conf spark.network.timeout=900s \
+--conf spark.rpc.askTimeout=900s \
+--conf spark.executor.heartbeatInterval=900s \
 --conf 'spark.driver.extraJavaOptions=-XX:ParallelGCThreads=2' \
 --conf 'spark.executor.extraJavaOptions=-XX:ParallelGCThreads=2' \
 --master %s \
@@ -887,6 +890,11 @@ if __name__ == "__main__":
       ret = main(input_dir, optionJSON)
       util.logMessage("multi process ended")
       util.endProcess(lockpath, ret)
+   except SystemExit as e: # caught endProcess after removing lock and exiting
+      if e.code == 0: # no problem
+         pass
+      else: # other exception
+         raise
    except Exception as e:
       util.logMessage("Error: Main Proc exception occur\n%s" % e)
       util.logMessage("Process terminated.")

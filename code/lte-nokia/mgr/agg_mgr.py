@@ -594,11 +594,11 @@ def getAvailablePort(index = 0, exportOnly = False):
     return port
 
 # worker function
-def worker(seqfile, index):
+def worker(seqfile):
 
 	global prev_jobname
 	seqfile_dir, seqfile_file = os.path.split(seqfile)
-	jobname = 'stg3_' + seqfile_file
+	jobname = 'stg3_' + seqfile_file + "_%d" % exportMode
 	jobname = jobname.replace(' ', '-') # for cluster mode, job name should not contain space - spark bug
 
 	util.logMessage("Task %s start..." % jobname)
@@ -775,7 +775,7 @@ def main(input_dir, optionJSON):
             bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
 
          # process file
-         worker(staging_dir_sub, 0)
+         worker(staging_dir_sub)
 
       except Exception as e:
          util.logMessage("Error: failed to export file %s\n%s" % (staging_dir_sub, e))
@@ -865,7 +865,6 @@ def main(input_dir, optionJSON):
 
 
    # going to each file type folder in the staging area and submit process
-   index = 0
    for curr_dir in filetypeDirArr:
       try:
 
@@ -877,8 +876,7 @@ def main(input_dir, optionJSON):
             bStartNewJob, delay_sec = canStartNewJob(statusJSON) # retest after the sleep
 
          # process file
-         worker(curr_dir, index)
-         index+=1
+         worker(curr_dir)
 
          # wait some sec before next task
          time.sleep(new_job_delay_sec)
@@ -920,6 +918,11 @@ if __name__ == "__main__":
       ret = main(input_dir, optionJSON)
       util.logMessage("multi process ended")
       util.endProcess(lockpath, ret)
+   except SystemExit as e: # caught endProcess after removing lock and exiting
+      if e.code == 0: # no problem
+         pass
+      else: # other exception
+         raise
    except Exception as e:
       util.logMessage("Error: Main Proc exception occur\n%s" % e)
       util.logMessage("Process terminated.")

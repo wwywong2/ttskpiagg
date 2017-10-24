@@ -871,6 +871,11 @@ if __name__ == "__main__":
       ret = main(input_dir, optionJSON)
       util.logMessage("multi process ended")
       util.endProcess(lockpath, ret)
+   except SystemExit as e: # caught endProcess after removing lock and exiting
+      if e.code == 0: # no problem
+         pass
+      else: # other exception
+         raise
    except Exception as e:
       util.logMessage("Error: Main Proc exception occur\n%s" % e)
       util.logMessage("Process terminated.")

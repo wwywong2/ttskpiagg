@@ -168,6 +168,36 @@ order by t1.pk_market ASC, t1.pk_date DESC, t1.pk_hr DESC".format(getmaxdatesql)
     finally:
         return datetimearr
 
+def getPqStructure2(pqfiletypedir, exportHr, logf):
+
+    # one market, one date, one hour will be an item of datetimearr
+    datetimearr = []
+    for datefd in sorted(os.listdir(pqfiletypedir), reverse=True):
+        if datefd.find("pk_date") >= 0:      
+            datadate = datefd.split('=')[1].strip('\n').strip('\r') 
+            for mktfd in sorted(os.listdir(os.path.join(pqfiletypedir, datefd)), reverse=True):
+                if mktfd.find("pk_market") >= 0:
+                    datamkt = mktfd.split('=')[1].strip('\n').strip('\r')
+                    for hrfd in sorted(os.listdir(os.path.join(pqfiletypedir, datefd, mktfd)), reverse=True):
+                        if hrfd.find("pk_hr") >= 0:
+                            nfindmkt = 0
+                            for item in datetimearr:
+                                if item['pk_market'] == datamkt:
+                                    nfindmkt += 1
+
+                            # find enough hours (#exportHr) for the market
+                            if nfindmkt >= exportHr:
+                                break
+
+                            datahr = hrfd.split('=')[1].strip('\n').strip('\r')
+                            datetimeobj = {}
+                            datetimeobj['pk_date'] = datadate
+                            datetimeobj['pk_market'] = datamkt
+                            datetimeobj['pk_hr'] = datahr
+                            datetimearr.append(datetimeobj)
+
+    return datetimearr
+
 def getPqStructure(pqfiletypedir, exportHr, previousdatehrs, logf):
 
     datetimearr = []
@@ -203,14 +233,14 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
 
     # get parquet folder structure
     previousdatehrs = 3
-    pqfd = getPqStructure(pqfiletypedir, int(jobsettingobj['exportHr']), previousdatehrs, logf)
+    pqfd = getPqStructure2(pqfiletypedir, int(jobsettingobj['exportHr']), logf)
     if len(pqfd) <= 0:
         spark.catalog.dropTempView(tempview)
         df = None
         return 1
 
     util.logMessage('parquet data to export: {}'.format(pqfd), logf)
-
+    
     ##################
     #
     #   get hourly and dately csv if latest date for every market
@@ -485,6 +515,8 @@ def packResults(csvpath, mktuidmap, logf):
                 continue
 
             # same makret for different file type may have different max hr, get max hr here
+            # group results for merging multiple hrs
+            resultsgroup = []
             maxhr = -1
             for resulttxt in glob.glob(os.path.join(root, resultdir, "*.csv")):
                 resulttxtarr = os.path.basename(resulttxt).split('_')
@@ -495,9 +527,54 @@ def packResults(csvpath, mktuidmap, logf):
                         maxhr = 0
                     if resulthr > maxhr:
                         maxhr = resulthr
+
+                    bfind = False
+                    ftype = resulttxtarr[10].replace('.csv', '')
+                    for groupitem in resultsgroup:
+                        if groupitem['ftype'] == ftype:
+                            groupitem['count'] += 1
+                            groupitem['files'].append(resulttxt)
+                            bfind = True
+                            break
+                    if not bfind:
+                        typegroup = {}
+                        typegroup['ftype'] = ftype
+                        typegroup['count'] = 1
+                        typegroup['files'] = []
+                        typegroup['files'].append(resulttxt)
+
+                        resultsgroup.append(typegroup)
+           
             if maxhr == -1:
                 continue
 
+            # merging hr results
+            for groupitem in resultsgroup:
+                if groupitem['count'] > 1:
+                    maxhrfp = None
+                    for resultfile in sorted(groupitem['files'], reverse=True):
+                        if maxhrfp is None:
+                            try:
+                                #util.logMessage('open max hr file {}'.format(resultfile), logf)
+                                maxhrfp = open(resultfile, 'a')
+                            except:
+                                util.logMessage('cannot open max hr file {}'.format(resultfile), logf)
+                                continue
+                        else:
+                            bskipheader = False
+                            #util.logMessage('open hr file {}'.format(resultfile), logf)
+                            with open(resultfile) as appendfile:
+                                for line in appendfile:
+                                    if not bskipheader:
+                                        bskipheader = True
+                                    else:
+                                        maxhrfp.write(line)
+                            os.remove(resultfile)
+                    if maxhrfp is not None:
+                        if not maxhrfp.closed:
+                            maxhrfp.flush()
+                            maxhrfp.close()
+                    
             # zip results for loader, hr-uid
             # ttskpiagg_20170713_015006710_NOKIA_LTE_TMO_2017-03-29_spk_SPOKANE_12-4baccf30-67a8-11e7-8f28-000c295b3aae.tgz
             tmpgzfile = os.path.join(mainoutputdir, '{}_{}_{}-{}.tgz.tmp'.format(mainzipname, resultdir, str(maxhr).zfill(2), uidstr))
