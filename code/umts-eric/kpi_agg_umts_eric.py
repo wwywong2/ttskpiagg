@@ -491,8 +491,8 @@ def addPkAndSaveParquet(origDF, writemode, outputDir, numPartition=None):
    # example join sql
    #sqlDF = spark.sql("SELECT l.TECH,l.VENDOR,l.MARKET,l.CLUSTER,l.AREA,k.UtranCell from kpi k left join lookup l on k.UtranCell = l.CELL")
    # create join dataframe
-   #df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on k.UtranCell = l.CELL AND l.TECH = 'UMTS'")
-   df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on UPPER(k.OSSName) = UPPER(l.OSS) AND k.UtranCell = l.CELL")
+   #df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area from kpi k left join lookup l on UPPER(k.OSSName) = UPPER(l.OSS) AND k.UtranCell = l.CELL")
+   df = spark.sql("SELECT k.*, IFNULL(l.MARKET,'unassigned') as HL_Market, IFNULL(l.CLUSTER,'unassigned') AS HL_Cluster, IFNULL(l.AREA,'unassigned') AS HL_Area, IFNULL(l.SITE,'unassigned') AS HL_Site from kpi k left join lookup l on UPPER(k.OSSName) = UPPER(l.OSS) AND k.UtranCell = l.CELL")
 
    # add key col from HL_MARKET - need to add HL_MARKET because that column will be gone if we go into sub dir
    df = df.withColumn("pk_market", df['HL_MARKET'])
