@@ -235,8 +235,6 @@ def kpiAppregation(spark, sqlquery, pqfiletypedir, marketsuffixmap, csvpath, fil
     previousdatehrs = 3
     pqfd = getPqStructure2(pqfiletypedir, int(jobsettingobj['exportHr']), logf)
     if len(pqfd) <= 0:
-        spark.catalog.dropTempView(tempview)
-        df = None
         return 1
 
     util.logMessage('parquet data to export: {}'.format(pqfd), logf)
