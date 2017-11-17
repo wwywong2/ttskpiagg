@@ -600,6 +600,7 @@ def getInfoFromPQNokia(parquetLocation):
    if len(pqList) <= 0:  # no file type folder
       return None
    else:
+      bHaveDate = False
       for filetype in pqList:
 
          filetypeStr = filetype.split("_ft=")[1]
@@ -608,7 +609,8 @@ def getInfoFromPQNokia(parquetLocation):
          pqDateList = glob.glob(filetype+"/*_date=*")
          if len(pqDateList) <= 0:  # no date folder
             pass
-         else:   
+         else:
+            bHaveDate = True
             for date in pqDateList:
 
                dateStr = date.split("_date=")[1]
@@ -631,6 +633,10 @@ def getInfoFromPQNokia(parquetLocation):
 
                            hrStr = hr.split("_hr=")[1]
                            finalPqList[filetypeStr][dateStr][marketStr][hrStr] = hr
+
+      # all filetype does not have any date folder = no data
+      if not bHaveDate:
+         return None
 
    return finalPqList
        
