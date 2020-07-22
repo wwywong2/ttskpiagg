@@ -53,9 +53,9 @@ exportMode = 1 # 1: save pq + export csv; 2: save pq only; 3: export csv only
 #              "tech" : "lte", 
 #              "vendor" : "eric",
 #              "oss" : "",
-#              "zkStr" : "zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos",
-#              "master" : "mesos_master_01", 
-#              "masterPort" : 5050,
+#              "zkStr" : "zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos",
+#              "main" : "mesos_main_01", 
+#              "mainPort" : 5050,
 #              "dispatcherPort" : 7077,
 #              "newJobDelay" : 3,
 #              "prevJobDelay" : 3,
@@ -84,11 +84,11 @@ optionJSON = ""
 if len(sys.argv) > 5:
    optionJSON = sys.argv[5]
 if optionJSON == "":
-   optionJSON = '{"master":"", "masterPort":5050}'
+   optionJSON = '{"main":"", "mainPort":5050}'
 try:
    optionJSON = json.loads(optionJSON)
 except Exception as e: # error parsing json
-   optionJSON = '{"master":"", "masterPort":5050}'
+   optionJSON = '{"main":"", "mainPort":5050}'
    optionJSON = json.loads(optionJSON) 
 
 # default val if not exist
@@ -107,11 +107,11 @@ else:
 if 'oss' not in optionJSON:
    optionJSON[u'oss'] = ""
 if 'zkStr' not in optionJSON:
-   optionJSON[u'zkStr'] = "zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos"
-if 'master' not in optionJSON:
-   optionJSON[u'master'] = ""
-if 'masterPort' not in optionJSON:
-   optionJSON[u'masterPort'] = 5050
+   optionJSON[u'zkStr'] = "zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos"
+if 'main' not in optionJSON:
+   optionJSON[u'main'] = ""
+if 'mainPort' not in optionJSON:
+   optionJSON[u'mainPort'] = 5050
 if 'dispatcherPort' not in optionJSON:
    optionJSON[u'dispatcherPort'] = 7077
 if 'newJobDelay' not in optionJSON:
@@ -298,32 +298,32 @@ core_per_job = core_per_job + extra_core_per_job
 
 
 
-# update master info
-# logic: if master provided, ignore zkStr and set master
-#        else if zkStr provided, use it to find master
-#        else if zkStr empty, use default zkStr (zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos) to find master
-#        if still cannot find master, use default (mesos_master_01)
-def updateMasterInfo():
+# update main info
+# logic: if main provided, ignore zkStr and set main
+#        else if zkStr provided, use it to find main
+#        else if zkStr empty, use default zkStr (zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos) to find main
+#        if still cannot find main, use default (mesos_main_01)
+def updateMainInfo():
 	global optionJSON
 
-	if optionJSON[u'master'] != '': # if master defined, not using zookeeper
+	if optionJSON[u'main'] != '': # if main defined, not using zookeeper
 	   optionJSON[u'zkStr'] = ''
-	   util.logMessage("Master default at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
-	else: # if master not defined, use zookeeper
+	   util.logMessage("Main default at %s:%d" % (optionJSON[u'main'], optionJSON[u'mainPort']))
+	else: # if main not defined, use zookeeper
 	   if optionJSON[u'zkStr'] != '':
-	      util.logMessage("Try to determine master using zookeeper string: %s" % optionJSON[u'zkStr'])
-	      master, masterPort = util.getMesosMaster(optionJSON[u'zkStr'])
+	      util.logMessage("Try to determine main using zookeeper string: %s" % optionJSON[u'zkStr'])
+	      main, mainPort = util.getMesosMain(optionJSON[u'zkStr'])
 	   else:
-	      util.logMessage("Try to determine master using default zookeeper string: %s" % 
-			"zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos")
-	      master, masterPort = util.getMesosMaster()
-	   if master == '': # master not found through zookeeper
-	      optionJSON[u'master'] = "mesos_master_01"
-	      util.logMessage("Cannot get master from zookeeper; master default at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
-	   else: # master found through zookeeper
-	      optionJSON[u'master'] = master
-	      optionJSON[u'masterPort'] = masterPort
-	      util.logMessage("Master detected at %s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort']))
+	      util.logMessage("Try to determine main using default zookeeper string: %s" % 
+			"zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos")
+	      main, mainPort = util.getMesosMain()
+	   if main == '': # main not found through zookeeper
+	      optionJSON[u'main'] = "mesos_main_01"
+	      util.logMessage("Cannot get main from zookeeper; main default at %s:%d" % (optionJSON[u'main'], optionJSON[u'mainPort']))
+	   else: # main found through zookeeper
+	      optionJSON[u'main'] = main
+	      optionJSON[u'mainPort'] = mainPort
+	      util.logMessage("Main detected at %s:%d" % (optionJSON[u'main'], optionJSON[u'mainPort']))
 
 # get status JSON
 def getStatusJSON():
@@ -343,10 +343,10 @@ def getStatusJSON():
 def getStatusJSON_mesos():
 	js = {}
 
-	#resp = requests.get('http://mesos_master_01:5050/tasks')
-	#resp = requests.get('http://mesos_master_01:5050/state')
+	#resp = requests.get('http://mesos_main_01:5050/tasks')
+	#resp = requests.get('http://mesos_main_01:5050/state')
 	#resp = requests.get('http://10.26.126.202:5050/state-summary')
-	resp = requests.get("http://%s:%d/master/state-summary" % (optionJSON[u'master'], optionJSON[u'masterPort']))
+	resp = requests.get("http://%s:%d/main/state-summary" % (optionJSON[u'main'], optionJSON[u'mainPort']))
 	if resp.status_code != 200:
 		# This means something went wrong.
 		#raise ApiError('GET /tasks/ {}'.format(resp.status_code))
@@ -380,10 +380,10 @@ def getCoresUsed_mesos(statusJSON):
 	else:
 		maxcores = 0
 		cores = 0
-		slaves = statusJSON['slaves']
-		for slave in slaves:
-			maxcores += int(slave['resources']['cpus'])
-			cores += int(slave['used_resources']['cpus'])
+		subordinates = statusJSON['subordinates']
+		for subordinate in subordinates:
+			maxcores += int(subordinate['resources']['cpus'])
+			cores += int(subordinate['used_resources']['cpus'])
 
 	return maxcores, cores
 
@@ -447,13 +447,13 @@ def getCurrJobs_mesos(statusJSON):
 				bFoundLastSubmit = True
 				prev_jobname = "" # reset prev job if found
 
-		slaves = statusJSON['slaves']
-		for worker in slaves:
+		subordinates = statusJSON['subordinates']
+		for worker in subordinates:
 			t_staging += int(worker["TASK_STAGING"])
 			t_starting += int(worker["TASK_STARTING"])
 			t_running += int(worker["TASK_RUNNING"])
 			t_killing += int(worker["TASK_KILLING"])
-		# that should be = numJobs in all slaves so not returning
+		# that should be = numJobs in all subordinates so not returning
 		numRunningJobs = t_staging + t_starting + t_running + t_killing 
 
 	return numJobs, numWaitingJobs, bFoundLastSubmit
@@ -486,9 +486,9 @@ def haveWorkersResource_mesos(statusJSON):
 	if len(statusJSON) == 0:
 		return bWorkerResource
 	else:
-		slaves = statusJSON['slaves']
-		numWorkers = len(slaves)
-		for worker in slaves:
+		subordinates = statusJSON['subordinates']
+		numWorkers = len(subordinates)
+		for worker in subordinates:
 			if worker["resources"]["cpus"] == worker["used_resources"]["cpus"] or worker["resources"]["mem"] == worker["used_resources"]["mem"]:
 				nNoResource += 1
 		if nNoResource == numWorkers:
@@ -608,14 +608,14 @@ def worker(seqfile):
 	# get rnadom port for web UI
 	port = util.getAvailablePortRand(optionJSON[u'uiStartPort'], optionJSON[u'uiEndPort']) # get random port
 
-	# create master string
-	if proc_mode == 'cluster': # assume the leading master that zk return is the one to be use for dispatcher
-		exec_str_master = "mesos://%s:%d" % (optionJSON[u'master'], optionJSON[u'dispatcherPort'])
+	# create main string
+	if proc_mode == 'cluster': # assume the leading main that zk return is the one to be use for dispatcher
+		exec_str_main = "mesos://%s:%d" % (optionJSON[u'main'], optionJSON[u'dispatcherPort'])
 	else: # client
 		if optionJSON[u'zkStr'] != '':
-			exec_str_master = "mesos://%s" % (optionJSON[u'zkStr'])
+			exec_str_main = "mesos://%s" % (optionJSON[u'zkStr'])
 		else:
-			exec_str_master = "mesos://%s:%d" % (optionJSON[u'master'], optionJSON[u'masterPort'])
+			exec_str_main = "mesos://%s:%d" % (optionJSON[u'main'], optionJSON[u'mainPort'])
 
 	# create spark string
 	exec_str_spark = "/opt/spark/bin/spark-submit \
@@ -625,13 +625,13 @@ def worker(seqfile):
 --conf spark.executor.heartbeatInterval=900s \
 --conf 'spark.driver.extraJavaOptions=-XX:ParallelGCThreads=2' \
 --conf 'spark.executor.extraJavaOptions=-XX:ParallelGCThreads=2' \
---master %s \
+--main %s \
 --deploy-mode %s \
 --driver-memory %s \
 --executor-memory %s \
 --total-executor-cores %d" % (
 		port,
-		exec_str_master,
+		exec_str_main,
 		proc_mode,
 		optionJSON[u'drvr_mem'],
 		optionJSON[u'exec_mem'],
@@ -698,9 +698,9 @@ TMO \
 		output_parq,
 		output_dir,
 		json.dumps(optionJSON))
-	if proc_mode != 'cluster': # client - support multi master (zookeeper)
+	if proc_mode != 'cluster': # client - support multi main (zookeeper)
 		exec_str_app += " &" 
-	else: # cluster - currently not support multi master (zookeeper)
+	else: # cluster - currently not support multi main (zookeeper)
 		pass
 
 	exec_str = exec_str_spark + " " + exec_str_app
@@ -708,13 +708,13 @@ TMO \
 	'''
 	# old samples
 	# submit new job - xml parser
-	#exec_str = "spark-submit --master spark://master:7077 --executor-memory 512m --driver-memory 512m --total-executor-cores 2 %s/kpi_parser_eric.py \"%s\" %s \"%s\" &" % (curr_py_dir, jobname, seqfile, output_dir)
-	if proc_mode != 'cluster': # client - support multi master (zookeeper)
-	#	exec_str = "/opt/spark/bin/spark-submit --master mesos://mesos_master_01:5050 --driver-memory 512m --executor-memory 966m --total-executor-cores 2 %s/kpi_parser_lte_eric.py \"%s\" %s \"tts@mesos_fs_01|%s\" \"client\" &" % (curr_py_dir, jobname, seqfile, output_dir)
-		exec_str = "/opt/spark/bin/spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos --driver-memory 512m --executor-memory 966m --total-executor-cores 2 %s/kpi_parser_lte_eric.py \"%s\" %s \"imnosrf@mesos_fs_01|%s\" \"client\" &" % (curr_py_dir, jobname, seqfile, output_dir)
-	else: # cluster - currently not support multi master (zookeeper)
-	#	exec_str = "/opt/spark/bin/spark-submit --master mesos://mesos_master_01:7077 --deploy-mode cluster --driver-memory 512m --executor-memory 966m --total-executor-cores 2 --py-files \"file:///home/tts/ttskpiraw/code/lte-eric/util.py,file:///home/tts/ttskpiraw/code/lte-eric/xmlparser_lte_eric.py,file:///home/tts/ttskpiraw/code/lte-eric/config.ini\" %s/kpi_parser_lte_eric.py \"%s\" %s \"tts@mesos_fs_01\|%s\" \"cluster\"" % (curr_py_dir, jobname, seqfile, output_dir)
-		exec_str = "/opt/spark/bin/spark-submit --master mesos://mesos_master_01:7077 --deploy-mode cluster --driver-memory 512m --executor-memory 966m --total-executor-cores 2 --py-files \"file:///home/imnosrf/ttskpiraw/code/lte-eric/util.py,file:///home/imnosrf/ttskpiraw/code/lte-eric/xmlparser_lte_eric.py,file:///home/imnosrf/ttskpiraw/code/lte-eric/config.ini\" %s/kpi_parser_lte_eric.py \"%s\" %s \"imnosrf@mesos_fs_01\|%s\" \"cluster\"" % (curr_py_dir, jobname, seqfile, output_dir)
+	#exec_str = "spark-submit --main spark://main:7077 --executor-memory 512m --driver-memory 512m --total-executor-cores 2 %s/kpi_parser_eric.py \"%s\" %s \"%s\" &" % (curr_py_dir, jobname, seqfile, output_dir)
+	if proc_mode != 'cluster': # client - support multi main (zookeeper)
+	#	exec_str = "/opt/spark/bin/spark-submit --main mesos://mesos_main_01:5050 --driver-memory 512m --executor-memory 966m --total-executor-cores 2 %s/kpi_parser_lte_eric.py \"%s\" %s \"tts@mesos_fs_01|%s\" \"client\" &" % (curr_py_dir, jobname, seqfile, output_dir)
+		exec_str = "/opt/spark/bin/spark-submit --main mesos://zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos --driver-memory 512m --executor-memory 966m --total-executor-cores 2 %s/kpi_parser_lte_eric.py \"%s\" %s \"imnosrf@mesos_fs_01|%s\" \"client\" &" % (curr_py_dir, jobname, seqfile, output_dir)
+	else: # cluster - currently not support multi main (zookeeper)
+	#	exec_str = "/opt/spark/bin/spark-submit --main mesos://mesos_main_01:7077 --deploy-mode cluster --driver-memory 512m --executor-memory 966m --total-executor-cores 2 --py-files \"file:///home/tts/ttskpiraw/code/lte-eric/util.py,file:///home/tts/ttskpiraw/code/lte-eric/xmlparser_lte_eric.py,file:///home/tts/ttskpiraw/code/lte-eric/config.ini\" %s/kpi_parser_lte_eric.py \"%s\" %s \"tts@mesos_fs_01\|%s\" \"cluster\"" % (curr_py_dir, jobname, seqfile, output_dir)
+		exec_str = "/opt/spark/bin/spark-submit --main mesos://mesos_main_01:7077 --deploy-mode cluster --driver-memory 512m --executor-memory 966m --total-executor-cores 2 --py-files \"file:///home/imnosrf/ttskpiraw/code/lte-eric/util.py,file:///home/imnosrf/ttskpiraw/code/lte-eric/xmlparser_lte_eric.py,file:///home/imnosrf/ttskpiraw/code/lte-eric/config.ini\" %s/kpi_parser_lte_eric.py \"%s\" %s \"imnosrf@mesos_fs_01\|%s\" \"cluster\"" % (curr_py_dir, jobname, seqfile, output_dir)
 	'''
 
 	util.logMessage("%s" % exec_str)
@@ -998,7 +998,7 @@ if __name__ == "__main__":
 
    try:
       # Execute Main functionality
-      updateMasterInfo() # update master from zkStr
+      updateMainInfo() # update main from zkStr
       util.logMessage("multi process started with option:\n%s" % json.dumps(optionJSON, sort_keys=True, indent=3)) # pretty print option JSON
       ret = main(input_dir, optionJSON)
       util.logMessage("multi process ended")

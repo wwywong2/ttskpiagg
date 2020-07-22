@@ -57,7 +57,7 @@ def printUsage():
    print '\nUsage:'
    print '%s procName inFile inSchemaFile inLookupPQ outPQ outCSV optionJSON\n' % (curr_py_filename)
    print 'e.g.'
-   print '/opt/spark/bin/spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos --driver-memory 512M --executor-memory 2G --total-executor-cores 8 %s "testProc" "/mnt/nfs/test/eric/umts/set_*_100/set_00*.txt" "umts_eric_schema.json" "/mnt/nfs/test/cellLookup.pqz" "/mnt/nfs/test/out.pqz" "/mnt/nfs/test/testUmts" \'{"overwrite":false, "partitionNum":2, "loadFactor":3}\' \n' % (curr_py_filename)
+   print '/opt/spark/bin/spark-submit --main mesos://zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos --driver-memory 512M --executor-memory 2G --total-executor-cores 8 %s "testProc" "/mnt/nfs/test/eric/umts/set_*_100/set_00*.txt" "umts_eric_schema.json" "/mnt/nfs/test/cellLookup.pqz" "/mnt/nfs/test/out.pqz" "/mnt/nfs/test/testUmts" \'{"overwrite":false, "partitionNum":2, "loadFactor":3}\' \n' % (curr_py_filename)
 
    print 'Detail:'
    print '   procName     - process name (mandatory)'

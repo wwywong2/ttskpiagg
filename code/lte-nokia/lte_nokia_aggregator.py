@@ -976,7 +976,7 @@ def main():
     # function id 1 will not use anymore
     if funcid == '1':
         '''
-        spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
+        spark-submit --main mesos://zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos
         --driver-memory 512M --executor-memory 916M --total-executor-cores 8
         /home/imnosrf/ttskpiagg/code/lte-nokia/lte_nokia_aggregator.py 1 NOKIA LTE TMO
         /mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput
@@ -1093,7 +1093,7 @@ def main():
 
     elif funcid == '2':
         '''
-        spark-submit --master mesos://zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos
+        spark-submit --main mesos://zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos
         --driver-memory 512M --executor-memory 916M --total-executor-cores 8
         /home/imnosrf/ttskpiagg/code/lte-nokia/lte_nokia_aggregator.py 2 NOKIA LTE TMO
         /mnt/nfsi01/ttskpiraw/lte-nokia/aggregatorInput
@@ -1220,7 +1220,7 @@ def main():
 
     elif funcid == '3':
         '''
-        spark-submit --master mesos://zk://10.26.156.22:2181,10.26.156.23:2181,10.26.156.24:2181/mesos
+        spark-submit --main mesos://zk://10.26.156.22:2181,10.26.156.23:2181,10.26.156.24:2181/mesos
          --driver-memory 512M --executor-memory 916M --total-executor-cores 8
          /home/imnosrf/ttskpiagg/code/lte-nokia/lte_nokia_aggregator.py 3 NOKIA LTE TMO
          /mnt/nfsi01/ttskpiraw/lte-nokia/parquet
