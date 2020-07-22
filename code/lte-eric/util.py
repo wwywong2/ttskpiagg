@@ -534,8 +534,8 @@ def endProcess(lockpath, exitCode):
    sys.exit(exitCode)
     
 
-# get mesos master with mesos-resolve
-def getMesosMaster(zkStr='zk://mesos_master_01:2181,mesos_master_02:2181,mesos_master_03:2181/mesos'):
+# get mesos main with mesos-resolve
+def getMesosMain(zkStr='zk://mesos_main_01:2181,mesos_main_02:2181,mesos_main_03:2181/mesos'):
    cmd = "mesos-resolve %s" % zkStr
    ret = subprocessShellExecute(cmd)
    #print ret['cmd']
@@ -544,18 +544,18 @@ def getMesosMaster(zkStr='zk://mesos_master_01:2181,mesos_master_02:2181,mesos_m
    #print "-%s-" % ret['outmsg'].strip()
    #print "-%s-" % ret['errmsg'].strip()
    if ret['ret']:
-      masterStrArr = ret['outmsg'].strip().split(':')
+      mainStrArr = ret['outmsg'].strip().split(':')
    else: # error
-      masterStrArr = []
+      mainStrArr = []
 
    # init
-   master = ''
-   masterPort = '0'
-   if len(masterStrArr) >= 2: # error getting master
-      master = masterStrArr[0]
-      masterPort = masterStrArr[1]
+   main = ''
+   mainPort = '0'
+   if len(mainStrArr) >= 2: # error getting main
+      main = mainStrArr[0]
+      mainPort = mainStrArr[1]
 
-   return master, int(masterPort)
+   return main, int(mainPort)
 
 # get parquet info from folder structure
 def getInfoFromPQ(parquetLocation):
